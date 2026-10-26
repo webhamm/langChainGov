@@ -2,6 +2,7 @@
 
 import openai
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
@@ -26,3 +27,17 @@ def list_models(settings: Settings) -> list[str]:
     """Return the model names the LiteLLM proxy exposes at ``/v1/models``."""
     client = openai.OpenAI(base_url=settings.base_url, api_key=settings.api_key)
     return sorted(model.id for model in client.models.list())
+
+
+def message_text(message: BaseMessage) -> str:
+    """Flatten a message's content to plain text (content may be a list of blocks)."""
+    content = message.content
+    if isinstance(content, str):
+        return content
+    parts: list[str] = []
+    for block in content:
+        if isinstance(block, str):
+            parts.append(block)
+        elif isinstance(block, dict) and isinstance(block.get("text"), str):
+            parts.append(block["text"])
+    return "".join(parts)
