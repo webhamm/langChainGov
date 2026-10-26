@@ -18,6 +18,7 @@ Run `langchaingov chat "..."` and get an answer from the local Llama through the
 - `langchaingov.llm.make_chat_model(settings) -> BaseChatModel` returning a `ChatOpenAI` pointed at LiteLLM. The single place that knows about LiteLLM.
 - `langchaingov chat "<prompt>"` with `--system`, `--model`, `--json`. Prints the reply, or `{"model": ..., "reply": ...}` with `--json`. Exit code 1 with a clear message if LiteLLM is unreachable or rejects the key.
 - `langchaingov version`.
+- `langchaingov models [--json]`: lists the model names the proxy exposes, so the model setting can be discovered (added when the model-name question was resolved).
 - `Makefile` with `check`, `lint`, `format`, `typecheck`, `test` targets.
 - GitHub Actions workflow running `make check` on push and PR.
 - Tests: settings load from env, `chat` works with a fake chat model injected via a factory override, `--json` output shape, exit codes.
@@ -33,7 +34,7 @@ Run `langchaingov chat "..."` and get an answer from the local Llama through the
 
 Check in with the user on each of these before implementing; if the answers change the phase plan, update `specs/roadmap.md` too.
 
-- What model name does the LiteLLM proxy expose for the local Llama (the value of `LANGCHAINGOV_MODEL`)? `curl http://localhost:4000/v1/models` with the key will list it. **Resolved:** to be discovered from `/v1/models` (or supplied by the user) before the manual check; the value lives only in `.env`.
+- What model name does the LiteLLM proxy expose for the local Llama (the value of `LANGCHAINGOV_MODEL`)? `curl http://localhost:4000/v1/models` with the key will list it. **Resolved:** discovered via a small `langchaingov models` command (lists `/v1/models`); the value lives only in `.env`. The existing `.env` is LiteLLM's own, so `LITELLM_MASTER_KEY` is accepted as an alias for the key.
 - Where does the LiteLLM API key live for local runs: `.env` file (recommended) or shell environment only? **Resolved:** `.env` file, git-ignored, with `.env.example` committed.
 - Pin Python 3.12 via uv (recommended, for guardrails-ai and nemoguardrails compatibility) or use the system 3.15 and accept that later phases may be blocked? **Resolved:** pin Python 3.12 via uv.
 - GitHub repo name and visibility: `webhamm/langChainGov`, private (recommended) or public? **Resolved:** `webhamm/langChainGov`, private.
