@@ -68,3 +68,16 @@ def test_guard_exception_fails_closed(stage: str) -> None:
     verdict = result.verdicts[-1]
     assert verdict.stage == stage
     assert verdict.reason == "guard failed: RuntimeError: stub exploded"
+
+
+def test_check_prompt_runs_input_guards_only() -> None:
+    model = RaisingChatModel(responses=["x"], error=AssertionError("model must not be called"))
+    upper = StubGuard("upper", on_input=("modify", "shouting"))
+    blocker = StubGuard("blocker", on_input=("block", "no"))
+    result = GuardedChain(model, [upper, blocker]).invoke("hello")
+    screened = GuardedChain(model, [upper]).check_prompt("hello")
+    assert screened.reply is None and not screened.blocked
+    assert [(v.stage, v.action, v.text) for v in screened.verdicts] == [
+        ("input", "modify", "HELLO")
+    ]
+    assert result.blocked and result.block_reason == "blocker (input): no"

@@ -8,7 +8,7 @@ Each phase's details are in `specs/<date>-phase-NN-<name>/`.
 
 1. ✅ **Scaffold and chat.** uv project, settings, `langchaingov chat` talking to LiteLLM, tests, `make check`, CI.
 2. ✅ **Guardrail core.** `Guardrail` protocol, `Verdict`, `GuardedChain`, registry, and a first keyword-blocklist guard behind `guard list` and `guard run`.
-3. **Eval harness.** A fictional YAML test set and `guard eval` that prints a verdict table and summary for any registered guardrail.
+3. ✅ **Eval harness.** A fictional YAML test set and `guard eval` that prints a verdict table and summary for any registered guardrail.
 
 ## Stage 2 — Guardrail families
 

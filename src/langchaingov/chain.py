@@ -29,16 +29,24 @@ class GuardedChain:
         self.guards = list(guards)
         self.system = system
 
-    def invoke(self, prompt: str) -> GuardedResult:
+    def check_prompt(self, prompt: str) -> GuardedResult:
+        """Run only the input guards. ``reply`` is always ``None``."""
         verdicts: list[Verdict] = []
-
         text = prompt
         for guard in self.guards:
             verdict = _run_check(guard, "input", guard.check_input, text)
             verdicts.append(verdict)
             if verdict.action == "block":
-                return GuardedResult(prompt=prompt, reply=None, verdicts=verdicts)
+                break
             text = verdict.text
+        return GuardedResult(prompt=prompt, reply=None, verdicts=verdicts)
+
+    def invoke(self, prompt: str) -> GuardedResult:
+        screened = self.check_prompt(prompt)
+        verdicts = list(screened.verdicts)
+        if screened.blocked:
+            return screened
+        text = verdicts[-1].text if verdicts else prompt
 
         reply = message_text(self.model.invoke(self._messages(text)))
 

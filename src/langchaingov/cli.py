@@ -3,6 +3,7 @@
 import json
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from pathlib import Path
 
 import openai
 import typer
@@ -13,8 +14,10 @@ from rich.table import Table
 
 from langchaingov import __version__
 from langchaingov.chain import GuardedChain
+from langchaingov.evals.loader import EvalSetError, load_set
+from langchaingov.evals.runner import Counts, EvalReport, run_eval
 from langchaingov.guards import registry
-from langchaingov.guards.base import GuardedResult
+from langchaingov.guards.base import GuardedResult, Guardrail
 from langchaingov.llm import list_models, make_chat_model, message_text
 from langchaingov.settings import Settings
 
@@ -56,12 +59,25 @@ def _require_key(settings: Settings) -> None:
         fail("LITELLM_API_KEY is not set. Copy .env.example to .env and fill it in.")
 
 
-def _configured_model(settings: Settings, override: str | None) -> tuple[BaseChatModel, str]:
-    _require_key(settings)
+def _configured_model(
+    settings: Settings, override: str | None, required: bool = True
+) -> tuple[BaseChatModel, str]:
+    """Build the chat model. With ``required=False`` missing config is tolerated, for
+    commands that only need the model object to construct guards and never call it."""
     model_name = override or settings.model
-    if not model_name:
-        fail("No model configured. Set LANGCHAINGOV_MODEL in .env or pass --model.")
+    if required:
+        _require_key(settings)
+        if not model_name:
+            fail("No model configured. Set LANGCHAINGOV_MODEL in .env or pass --model.")
     return model_factory(settings, model_name), model_name
+
+
+def _build_guards(names: list[str], settings: Settings, llm: BaseChatModel) -> list[Guardrail]:
+    try:
+        return [registry.get(name, settings, llm) for name in names]
+    except registry.UnknownGuardError as exc:
+        fail(str(exc))
+    raise AssertionError("unreachable")
 
 
 @contextmanager
@@ -150,11 +166,7 @@ def guard_run(
     """
     settings = Settings()
     llm, model_name = _configured_model(settings, model)
-    try:
-        guards = [registry.get(name, settings, llm) for name in guard]
-    except registry.UnknownGuardError as exc:
-        fail(str(exc))
-
+    guards = _build_guards(guard, settings, llm)
     chain = GuardedChain(llm, guards, system=system)
     with _client_errors(settings, model_name):
         result = chain.invoke(prompt)
@@ -186,3 +198,77 @@ def _print_result(result: GuardedResult) -> None:
         console.print(f"[red]Blocked:[/red] {result.block_reason}", highlight=False)
     else:
         console.print(result.reply or "", markup=False, highlight=False)
+
+
+SET_OPTION = typer.Option(
+    None, "--set", help="Eval set YAML file. Default: the packaged houseplant-care set."
+)
+TAG_OPTION = typer.Option(None, "--tag", "-t", help="Only cases with this tag; repeatable.")
+WITH_MODEL_FLAG = typer.Option(
+    False, "--with-model", help="Also call the model and run output guards (needs the proxy)."
+)
+
+
+@guard_app.command("eval")
+def guard_eval(
+    guard: list[str] = GUARD_OPTION,
+    set_path: Path | None = SET_OPTION,
+    tag: list[str] | None = TAG_OPTION,
+    with_model: bool = WITH_MODEL_FLAG,
+    system: str | None = SYSTEM_OPTION,
+    model: str | None = MODEL_OPTION,
+    json_output: bool = JSON_FLAG,
+) -> None:
+    """Run an eval set through guardrails and count matched, false, and missed blocks.
+
+    By default only input guards run, so no proxy is needed. Exit code 1 only on errors.
+    """
+    settings = Settings()
+    llm, model_name = _configured_model(settings, model, required=with_model)
+    guards = _build_guards(guard, settings, llm)
+    try:
+        eval_set = load_set(set_path)
+    except EvalSetError as exc:
+        fail(str(exc))
+
+    chain = GuardedChain(llm, guards, system=system)
+    with _client_errors(settings, model_name):
+        report = run_eval(eval_set, chain, with_model=with_model, tags=tag)
+
+    if json_output:
+        payload = {
+            **report.model_dump(),
+            "totals": report.totals.model_dump(),
+            "by_tag": {t: c.model_dump() for t, c in report.by_tag.items()},
+        }
+        console.print_json(json.dumps(payload))
+    else:
+        _print_report(report)
+
+
+def _print_report(report: EvalReport) -> None:
+    table = Table("Case", "Tags", "Expected", "Actual", "Match", "Reason")
+    for row in report.rows:
+        mark = "[green]yes[/green]" if row.matched else "[red]no[/red]"
+        table.add_row(row.case_id, ", ".join(row.tags), row.expected, row.actual, mark, row.reason)
+    console.print(table)
+
+    summary = Table("Tag", "Cases", "Matched", "False blocks", "Missed blocks")
+    for tag, counts in report.by_tag.items():
+        summary.add_row(tag, *_count_cells(counts))
+    summary.add_row("[bold]all[/bold]", *_count_cells(report.totals))
+    console.print(summary)
+    mode = "input + model + output" if report.with_model else "input guards only"
+    console.print(
+        f"Set {report.set_name!r}, guards {', '.join(report.guards)}, mode: {mode}",
+        highlight=False,
+    )
+
+
+def _count_cells(counts: Counts) -> list[str]:
+    return [
+        str(counts.total),
+        str(counts.matched),
+        str(counts.false_blocks),
+        str(counts.missed_blocks),
+    ]
