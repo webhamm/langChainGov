@@ -13,11 +13,12 @@ def make_chat_model(settings: Settings, model: str | None = None) -> BaseChatMod
     """Return a ``ChatOpenAI`` pointed at the LiteLLM proxy described by ``settings``.
 
     ``model`` overrides ``settings.model`` when given. No network call is made here;
-    the client connects lazily on first invocation.
+    the client connects lazily on first invocation. An empty key is replaced by a
+    placeholder so the client can be built for offline use; the proxy rejects it on use.
     """
     return ChatOpenAI(
         base_url=settings.base_url,
-        api_key=SecretStr(settings.api_key),
+        api_key=SecretStr(settings.api_key or "unset"),
         model=model or settings.model,
         temperature=settings.temperature,
     )

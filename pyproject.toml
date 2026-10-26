@@ -1,6 +1,6 @@
 [project]
 name = "langchaingov"
-version = "0.2.0"
+version = "0.3.0"
 description = "A learning sandbox for LangChain guardrails against a local model served through LiteLLM"
 readme = "README.md"
 authors = [
@@ -11,6 +11,7 @@ dependencies = [
     "langchain>=1.0",
     "langchain-openai>=1.0",
     "pydantic-settings>=2.6",
+    "pyyaml>=6.0.3",
     "rich>=13.0",
     "typer>=0.15",
 ]
@@ -23,6 +24,7 @@ dev = [
     "mypy>=1.13",
     "pytest>=8.0",
     "ruff>=0.8",
+    "types-pyyaml>=6.0.12.20260906",
 ]
 
 [build-system]

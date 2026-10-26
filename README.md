@@ -43,9 +43,32 @@ uv run langchaingov guard run --guard keyword-blocklist "Tell me about blorptium
 uv run langchaingov guard run -g keyword-blocklist -g other-guard --json "hello"
 ```
 
+```sh
+uv run langchaingov guard eval -g keyword-blocklist                 # packaged set, input guards only, offline
+uv run langchaingov guard eval -g keyword-blocklist -t pii --json   # one tag, machine-readable
+uv run langchaingov guard eval -g keyword-blocklist --with-model    # full chain, needs the proxy
+uv run langchaingov guard eval -g keyword-blocklist --set my-cases.yaml
+```
+
 `guard run` sends the prompt through every named guard in order, then the model, then every guard again on the reply. It prints a table of verdicts (stage, guard, action, reason) followed by the reply or the block reason. Exit codes: 0 allowed or modified, 2 blocked by a guard, 1 configuration or proxy error.
 
 Every guardrail implements one small protocol (`src/langchaingov/guards/base.py`): `check_input` and `check_output` each return a `Verdict` with an action (`allow`, `block`, `modify`), the text to continue with, and a reason. A guard that raises is treated as a block (fail closed). The registry in `guards/registry.py` maps names to factories; each guardrail family lives in its own package under `guards/`.
+
+### Evaluating guardrails
+
+`guard eval` feeds every case of an eval set through the same chain as `guard run` and prints one row per case (expected, actual, match, reason) plus counts per tag and overall: matched, false blocks (expected allow, a guard fired), missed blocks (expected block, nothing fired). An expected `block` counts as matched when a guard blocks *or* modifies; an expected `allow` only when nothing fires. By default only input guards run, so it is fast and offline; `--with-model` runs the model and the output guards too.
+
+The packaged set (`src/langchaingov/evals/data/default.yaml`) has fictional prompts for a houseplant-care assistant, tagged `benign`, `jailbreak`, `pii`, `off-topic`, and `toxic`. Your own set is a YAML file of the same shape:
+
+```yaml
+name: my-cases
+description: optional
+cases:
+  - id: unique-id
+    prompt: the user message
+    expected: allow   # or block
+    tags: [benign]    # optional
+```
 
 Guards so far:
 
@@ -66,4 +89,4 @@ Tests never touch the network: they run in an empty temp directory and inject fa
 
 ## Roadmap
 
-See `specs/roadmap.md`. Next up: the eval harness, then one phase per guardrail family (custom validators, LangChain middleware, Guardrails AI, NeMo Guardrails).
+See `specs/roadmap.md`. Next up: then one phase per guardrail family (custom validators, LangChain middleware, Guardrails AI, NeMo Guardrails).
