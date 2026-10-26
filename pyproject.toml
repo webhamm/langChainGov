@@ -1,0 +1,46 @@
+[project]
+name = "langchaingov"
+version = "0.1.0"
+description = "A learning sandbox for LangChain guardrails against a local model served through LiteLLM"
+readme = "README.md"
+authors = [
+    { name = "Christopher Hamm", email = "cehamm01@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "langchain>=1.0",
+    "langchain-openai>=1.0",
+    "pydantic-settings>=2.6",
+    "rich>=13.0",
+    "typer>=0.15",
+]
+
+[project.scripts]
+langchaingov = "langchaingov.cli:app"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.13",
+    "pytest>=8.0",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
