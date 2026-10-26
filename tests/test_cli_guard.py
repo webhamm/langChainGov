@@ -29,7 +29,8 @@ def install_fake(monkeypatch: pytest.MonkeyPatch, reply: str = "the reply") -> N
 def test_guard_list_shows_builtins() -> None:
     result = runner.invoke(cli.app, ["guard", "list"])
     assert result.exit_code == 0, result.output
-    assert "keyword-blocklist" in result.stdout
+    for name in ["keyword-blocklist", "pii-regex", "topic-allowlist", "llm-judge"]:
+        assert name in result.stdout
 
     result = runner.invoke(cli.app, ["guard", "list", "--json"])
     names = [row["name"] for row in json.loads(result.stdout)]
@@ -109,3 +110,39 @@ def test_guard_run_requires_config(monkeypatch: pytest.MonkeyPatch) -> None:
     result = runner.invoke(cli.app, ["guard", "run", "--guard", "keyword-blocklist", "hello"])
     assert result.exit_code == 1
     assert "LITELLM_API_KEY" in result.output
+
+
+def test_guard_run_redaction_reaches_model(
+    monkeypatch: pytest.MonkeyPatch, configured: None
+) -> None:
+    from tests.fakes import RecordingChatModel
+
+    fake = RecordingChatModel(responses=["noted"])
+    monkeypatch.setattr(cli, "model_factory", lambda s, m: fake)
+    result = runner.invoke(
+        cli.app, ["guard", "run", "-g", "pii-regex", "--json", "email me at jane.doe@example.com"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["blocked"] is False
+    assert payload["verdicts"][0]["action"] == "modify"
+    assert str(fake.seen[0][-1].content) == "email me at [EMAIL]"
+
+
+def test_guard_run_proxy_error_is_reported_not_blocked(
+    monkeypatch: pytest.MonkeyPatch, configured: None
+) -> None:
+    import httpx2
+    import openai
+
+    from tests.fakes import RaisingChatModel
+
+    error = openai.APIConnectionError(
+        request=httpx2.Request("POST", "http://localhost:4000/v1/chat/completions")
+    )
+    monkeypatch.setattr(
+        cli, "model_factory", lambda s, m: RaisingChatModel(responses=["x"], error=error)
+    )
+    result = runner.invoke(cli.app, ["guard", "run", "-g", "llm-judge", "hello"])
+    assert result.exit_code == 1
+    assert "Could not reach LiteLLM" in result.output

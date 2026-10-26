@@ -12,7 +12,7 @@ Each phase's details are in `specs/<date>-phase-NN-<name>/`.
 
 ## Stage 2 — Guardrail families
 
-4. **Custom validators.** Regex PII detection with redaction, a topic allowlist, and an LLM-as-judge guard that uses the local model.
+4. ✅ **Custom validators.** Regex PII detection with redaction, a topic allowlist, and an LLM-as-judge guard that uses the local model.
 5. **LangChain-native middleware.** LangChain agent middleware (PII, human-in-the-loop, custom before/after-model hooks) adapted to the protocol.
 6. **Guardrails AI.** The `guardrails-ai` package and selected hub validators wrapped as guardrails, installed as an optional extra.
 7. **NeMo Guardrails.** `nemoguardrails` with a Colang config for input and output rails, pointed at LiteLLM, wrapped as a guardrail.

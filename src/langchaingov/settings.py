@@ -4,6 +4,9 @@ All variables use the ``LANGCHAINGOV_`` prefix except the LiteLLM key, which kee
 LiteLLM's own name so one ``.env`` can serve both tools.
 """
 
+from pathlib import Path
+from typing import Literal
+
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -39,4 +42,27 @@ class Settings(BaseSettings):
     """Comma-separated words for the ``keyword-blocklist`` guard. Defaults are fictional."""
 
     def blocklist_words(self) -> list[str]:
-        return [w.strip() for w in self.blocklist.split(",") if w.strip()]
+        return _split_csv(self.blocklist)
+
+    pii_mode: Literal["redact", "block"] = "redact"
+    """What the ``pii-regex`` guard does on a match."""
+
+    topics: str = (
+        "plant,houseplant,basil,pothos,monstera,succulent,fern,cactus,cacti,orchid,"
+        "fig,leaf,leaves,pot,repot,soil,water,watering,fertilize,fertilizer,"
+        "propagate,propagation,cutting,grow light,garden,gardening,nursery"
+    )
+    """Comma-separated topic words for the ``topic-allowlist`` guard."""
+
+    def topic_words(self) -> list[str]:
+        return _split_csv(self.topics)
+
+    judge_model: str = ""
+    """Model for the ``llm-judge`` guard. Empty means: reuse the chat model."""
+
+    judge_rubric: Path | None = None
+    """Plain-text rubric file for the ``llm-judge`` guard. Empty means: the built-in rubric."""
+
+
+def _split_csv(value: str) -> list[str]:
+    return [w.strip() for w in value.split(",") if w.strip()]

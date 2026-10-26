@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Sequence
 
+import openai
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
@@ -17,6 +18,8 @@ class GuardedChain:
       reply is withheld (for output).
     - A ``modify`` verdict's text is what the next guard, and the model, see.
     - A guard that raises is treated as a ``block`` (fail closed), with the error as reason.
+      OpenAI client errors (proxy down, bad key) are the exception: they propagate so the
+      caller can report them as errors rather than verdicts.
     """
 
     def __init__(
@@ -72,6 +75,8 @@ def _run_check(
 ) -> Verdict:
     try:
         return check(text)
+    except openai.APIError:
+        raise
     except Exception as exc:  # fail closed on any guard failure
         return Verdict.block(
             guard.name, stage, text, reason=f"guard failed: {type(exc).__name__}: {exc}"
