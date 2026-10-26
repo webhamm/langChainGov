@@ -27,13 +27,16 @@ Wrap the `guardrails-ai` package and a few of its hub validators as guardrails, 
 
 Check in with the user on each of these before implementing; if the answers change the phase plan, update `specs/roadmap.md` too.
 
-- Which hub validators to include? Proposed: `DetectPII` and `ToxicLanguage` (both run locally), plus `RestrictToTopic` if its model download is acceptable.
-- Hub installs need a Guardrails Hub token; is creating a free account acceptable, or restrict to validators that ship without the hub?
-- If `guardrails-ai` does not support the pinned Python, is a separate uv environment for this phase acceptable?
+- Which hub validators to include? Proposed: `DetectPII` and `ToxicLanguage` (both run locally), plus `RestrictToTopic` if its model download is acceptable. **Resolved:** all three: `DetectPII`, `ToxicLanguage`, `RestrictToTopic`.
+- Hub installs need a Guardrails Hub token; is creating a free account acceptable, or restrict to validators that ship without the hub? **Resolved:** no hub account. The validators are open-source packages on GitHub (`guardrails-ai/<validator>`), so they are installed as git dependencies in the optional group instead of via `guardrails hub install`; if that does not work, fall back to validators that ship with the core package.
+- If `guardrails-ai` does not support the pinned Python, is a separate uv environment for this phase acceptable? **Resolved:** a dry run showed `guardrails-ai==0.11.0` resolves on Python 3.12, so the optional group `guardrails-ai` in the same repo is enough; an alternate interpreter is only a fallback.
 
 (When the phase starts, append ` **Resolved:** <answer>.` to each question.)
 
 ## Context
+
+- Adding the extra moved the whole project's `openai` from 3.x to 2.x (`guardrails-ai` depends on `litellm`, which caps `openai<3`; uv locks one version across extras). Recorded in `docs/guardrails-ai-notes.md`.
+- The package sends hub telemetry to a remote collector by default; the adapter disables it in memory (principle 1, local first).
 
 - `tech-stack.md` → guardrail libraries are optional extras; third-party machinery never leaks into the CLI.
 - `mission.md` principle 1 (local first) and principle 2 (one interface, many guardrails).

@@ -37,6 +37,9 @@ def test_guard_list_shows_builtins() -> None:
         "lc-pii",
         "lc-hitl",
         "lc-custom-hooks",
+        "gr-pii",
+        "gr-toxic",
+        "gr-topic",
     ]:
         assert name in result.stdout
 
@@ -140,13 +143,13 @@ def test_guard_run_redaction_reaches_model(
 def test_guard_run_proxy_error_is_reported_not_blocked(
     monkeypatch: pytest.MonkeyPatch, configured: None
 ) -> None:
-    import httpx2
+    import httpx
     import openai
 
     from tests.fakes import RaisingChatModel
 
     error = openai.APIConnectionError(
-        request=httpx2.Request("POST", "http://localhost:4000/v1/chat/completions")
+        request=httpx.Request("POST", "http://localhost:4000/v1/chat/completions")
     )
     monkeypatch.setattr(
         cli, "model_factory", lambda s, m: RaisingChatModel(responses=["x"], error=error)
@@ -175,3 +178,15 @@ def test_guard_eval_hitl_auto_blocks(monkeypatch: pytest.MonkeyPatch) -> None:
     payload = json.loads(result.stdout)
     assert all(r["actual"] == "block" for r in payload["rows"])
     assert payload["totals"]["false_blocks"] == payload["by_tag"]["benign"]["total"]
+
+
+def test_guard_run_missing_extra_hint(monkeypatch: pytest.MonkeyPatch, configured: None) -> None:
+    from langchaingov.guards import guardrails_ai
+
+    install_fake(monkeypatch)
+    monkeypatch.setattr(guardrails_ai, "is_installed", lambda: False)
+    result = runner.invoke(cli.app, ["guard", "run", "-g", "gr-pii", "hello"])
+    assert result.exit_code == 1
+    assert "guard 'gr-pii' needs the 'guardrails-ai' extra: uv sync --extra guardrails-ai" in (
+        result.output
+    )

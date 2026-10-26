@@ -20,6 +20,15 @@ class GuardSpec:
     factory: GuardFactory
 
 
+class MissingExtraError(RuntimeError):
+    """The guard needs an optional dependency group that is not installed."""
+
+    def __init__(self, guard: str, extra: str) -> None:
+        self.guard = guard
+        self.extra = extra
+        super().__init__(f"guard {guard!r} needs the {extra!r} extra: uv sync --extra {extra}")
+
+
 class UnknownGuardError(KeyError):
     def __init__(self, name: str, known: list[str]) -> None:
         self.name = name
@@ -44,10 +53,11 @@ def _ensure_builtins() -> None:
         return
     _builtins_loaded = True
     # Imported lazily: the guard packages import this module to register themselves.
-    from langchaingov.guards import custom, middleware
+    from langchaingov.guards import custom, guardrails_ai, middleware
 
     custom.register_all()
     middleware.register_all()
+    guardrails_ai.register_all()
 
 
 def specs() -> list[GuardSpec]:
