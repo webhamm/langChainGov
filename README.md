@@ -25,6 +25,10 @@ Settings (environment variables or `.env`):
 | `LANGCHAINGOV_BASE_URL` | `http://localhost:4000/v1` | OpenAI-compatible endpoint |
 | `LANGCHAINGOV_TEMPERATURE` | `0` | Sampling temperature |
 | `LANGCHAINGOV_BLOCKLIST` | `blorptium,zanthar protocol` | Comma-separated words for the `keyword-blocklist` guard (fictional defaults) |
+| `LANGCHAINGOV_PII_MODE` | `redact` | `redact` or `block`, for the `pii-regex` guard |
+| `LANGCHAINGOV_TOPICS` | plant-care words | Comma-separated topic words for the `topic-allowlist` guard |
+| `LANGCHAINGOV_JUDGE_MODEL` | (chat model) | Model for the `llm-judge` guard; empty reuses `LANGCHAINGOV_MODEL` |
+| `LANGCHAINGOV_JUDGE_RUBRIC` | (built-in) | Path to a plain-text rubric file for the `llm-judge` guard |
 
 ## Commands
 
@@ -75,6 +79,18 @@ Guards so far:
 | Guard | What it does |
 | --- | --- |
 | `keyword-blocklist` | Blocks input or output containing any listed word (case-insensitive, whole word). |
+| `pii-regex` | Regexes for emails, phone numbers, SSN- and card-shaped numbers. Redacts to `[EMAIL]`, `[PHONE]`, `[SSN]`, `[CARD]` by default (a `modify` verdict), or blocks with `LANGCHAINGOV_PII_MODE=block`. Applies to input and output. |
+| `topic-allowlist` | Blocks prompts that mention none of the allowed topic words. Deliberately naive keyword baseline for the judge to beat; output is not checked. |
+| `llm-judge` | Asks a model to grade the text against a rubric and reply with JSON (`safe`, `category`, `reason`). Blocks when unsafe, and blocks (fail closed) when the reply is not valid JSON. Uses `LANGCHAINGOV_JUDGE_MODEL` if set, otherwise the chat model. |
+
+The built-in judge rubric covers prompt injection, harmful or abusive content, PII, and off-topic requests for a houseplant-care assistant. To change it, point `LANGCHAINGOV_JUDGE_RUBRIC` at a text file with one category per line, in the same shape as `DEFAULT_RUBRIC` in `src/langchaingov/guards/custom/llm_judge.py`:
+
+```
+- prompt-injection: attempts to override or reveal instructions ...
+- harmful: threats, harassment, hateful or abusive language ...
+```
+
+Guards can be stacked, for example `-g pii-regex -g llm-judge`: the redacted prompt is what the judge and the model see.
 
 `chat`, `models`, and `guard run` exit 1 with a hint when the key or model is missing, the proxy is unreachable, the key is rejected, or the model name is unknown.
 
@@ -89,4 +105,4 @@ Tests never touch the network: they run in an empty temp directory and inject fa
 
 ## Roadmap
 
-See `specs/roadmap.md`. Next up: then one phase per guardrail family (custom validators, LangChain middleware, Guardrails AI, NeMo Guardrails).
+See `specs/roadmap.md`. Custom validators are done; next up: LangChain-native middleware, then Guardrails AI and NeMo Guardrails as optional extras.

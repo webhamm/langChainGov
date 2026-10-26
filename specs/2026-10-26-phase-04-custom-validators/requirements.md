@@ -27,9 +27,9 @@ Run three hand-rolled guardrails (regex PII, topic allowlist, LLM-as-judge) thro
 
 Check in with the user on each of these before implementing; if the answers change the phase plan, update `specs/roadmap.md` too.
 
-- Should `pii-regex` default to redacting (recommended) or blocking?
-- Should the judge use the same model as chat (recommended for a one-model setup) or a separately configured `LANGCHAINGOV_JUDGE_MODEL`?
-- Judge rubric for v1: a short fixed list (prompt injection, harmful instructions, PII request, off-topic) or user-editable via a settings file?
+- Should `pii-regex` default to redacting (recommended) or blocking? **Resolved:** redact; `LANGCHAINGOV_PII_MODE=block` switches to blocking.
+- Should the judge use the same model as chat (recommended for a one-model setup) or a separately configured `LANGCHAINGOV_JUDGE_MODEL`? **Resolved:** separate `LANGCHAINGOV_JUDGE_MODEL`; when unset the judge reuses the shared chat model.
+- Judge rubric for v1: a short fixed list (prompt injection, harmful instructions, PII request, off-topic) or user-editable via a settings file? **Resolved:** `LANGCHAINGOV_JUDGE_RUBRIC` points at a plain-text rubric file; the built-in list (prompt injection, harmful/abusive, PII, off-topic for a houseplant-care assistant) is the default and the example format.
 
 (When the phase starts, append ` **Resolved:** <answer>.` to each question.)
 

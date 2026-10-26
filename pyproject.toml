@@ -1,6 +1,6 @@
 [project]
 name = "langchaingov"
-version = "0.3.0"
+version = "0.4.0"
 description = "A learning sandbox for LangChain guardrails against a local model served through LiteLLM"
 readme = "README.md"
 authors = [

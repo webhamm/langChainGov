@@ -8,19 +8,19 @@ Roadmap: Stage 2 — Guardrail families, phase 04. Branch (created when work sta
 
 ## 1. Quality gates
 
-- [ ] `make check` passes (lint, format check, strict type check, tests)
+- [x] `make check` passes (lint, format check, strict type check, tests)
 - [ ] CI is green on the branch
-- [ ] New code has unit tests; no test makes a network call
+- [x] New code has unit tests; no test makes a network call
 
 ## 2. Behavior
 
-- [ ] `pii-regex` redacts a fictional email, phone, and SSN and leaves clean text untouched
-- [ ] `topic-allowlist` blocks an off-topic prompt and allows an on-topic one
-- [ ] `llm-judge` blocks when the (fake) model says unsafe, allows when safe, and blocks on malformed output
+- [x] `pii-regex` redacts a fictional email, phone, and SSN and leaves clean text untouched
+- [x] `topic-allowlist` blocks an off-topic prompt and allows an on-topic one
+- [x] `llm-judge` blocks when the (fake) model says unsafe, allows when safe, and blocks on malformed output
 
 ## 3. Interfaces
 
-- [ ] CLI: `guard list` shows the three new guards; `guard run` and `guard eval` accept them. Covered by tests
+- [x] CLI: `guard list` shows the three new guards; `guard run` and `guard eval` accept them. Covered by tests
 
 ## 4. Manual checks
 
@@ -28,16 +28,16 @@ Roadmap: Stage 2 — Guardrail families, phase 04. Branch (created when work sta
 
 ## 5. Docs and specs
 
-- [ ] The README covers the three guards and their settings
-- [ ] `specs/roadmap.md` marks phase 04 as done
-- [ ] No real personal data is committed (PII examples are fictional)
-- [ ] Every open question in `requirements.md` is resolved and recorded
+- [x] The README covers the three guards and their settings
+- [x] `specs/roadmap.md` marks phase 04 as done
+- [x] No real personal data is committed (PII examples are fictional)
+- [x] Every open question in `requirements.md` is resolved and recorded
 
 ## Run log
 
 | Date | Version | Inputs | Result | Reviewer notes |
 | --- | --- | --- | --- | --- |
-| | | | | |
+| 2026-10-26 | 0.4.0 | `uv run langchaingov guard eval -g pii-regex -g topic-allowlist --json` (offline, packaged set, 26 cases) | 22 matched, 0 false blocks, 4 missed: benign 6/6, pii 6/6, off-topic 4/4, jailbreak 5/6 (missed: injection hidden inside a plant note), toxic 1/4 (missed: insults and threats that mention plants). Shows the keyword baseline's blind spots the judge should close. | `guard eval -g llm-judge --with-model` waits on a local model in LiteLLM; CI skipped by decision. |
 
 ## Definition of done
 

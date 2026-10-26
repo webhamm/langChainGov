@@ -2,6 +2,7 @@ import pytest
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from langchaingov.chain import GuardedChain
+from langchaingov.guards.base import Verdict
 from tests.fakes import RaisingChatModel, RecordingChatModel, StubGuard
 
 
@@ -81,3 +82,24 @@ def test_check_prompt_runs_input_guards_only() -> None:
         ("input", "modify", "HELLO")
     ]
     assert result.blocked and result.block_reason == "blocker (input): no"
+
+
+def test_openai_errors_propagate_instead_of_failing_closed() -> None:
+    import httpx2
+    import openai
+
+    request = httpx2.Request("POST", "http://localhost:4000/v1/chat/completions")
+
+    class Exploding:
+        name = "exploding"
+        description = "raises a transport error"
+
+        def check_input(self, text: str) -> Verdict:
+            raise openai.APIConnectionError(request=request)
+
+        def check_output(self, text: str) -> Verdict:
+            return Verdict.allow(self.name, "output", text)
+
+    model = RecordingChatModel(responses=["ok"])
+    with pytest.raises(openai.APIConnectionError):
+        GuardedChain(model, [Exploding()]).invoke("hello")
