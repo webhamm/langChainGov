@@ -7,46 +7,15 @@ import openai
 import pytest
 from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
-from langchain_core.outputs import ChatResult
-from pydantic import Field
+from langchain_core.messages import HumanMessage, SystemMessage
 from typer.testing import CliRunner
 
 from langchaingov import __version__, cli
+from langchaingov.llm import message_text
 from langchaingov.settings import Settings
+from tests.fakes import RaisingChatModel, RecordingChatModel
 
 runner = CliRunner()
-
-
-class RecordingChatModel(FakeListChatModel):
-    """A fake that remembers the messages it was invoked with."""
-
-    seen: list[list[BaseMessage]] = Field(default_factory=list)
-
-    def _generate(
-        self,
-        messages: list[BaseMessage],
-        stop: list[str] | None = None,
-        run_manager: Any = None,
-        **kwargs: Any,
-    ) -> ChatResult:
-        self.seen.append(list(messages))
-        return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
-
-
-class RaisingChatModel(FakeListChatModel):
-    """A fake whose invocation raises a given exception."""
-
-    error: Exception
-
-    def _generate(
-        self,
-        messages: list[BaseMessage],
-        stop: list[str] | None = None,
-        run_manager: Any = None,
-        **kwargs: Any,
-    ) -> ChatResult:
-        raise self.error
 
 
 def install_fake(
@@ -166,7 +135,7 @@ def test_message_text_flattens_content_blocks() -> None:
         "world",
         {"type": "image", "url": "ignored"},
     ]
-    assert cli.message_text(AIMessage(content=list(blocks))) == "Hello world"
+    assert message_text(AIMessage(content=list(blocks))) == "Hello world"
 
 
 def test_models_lists_names(monkeypatch: pytest.MonkeyPatch, configured: None) -> None:

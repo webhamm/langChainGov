@@ -34,3 +34,9 @@ class Settings(BaseSettings):
     """API key the LiteLLM proxy expects (its master key works). Required for any model call."""
 
     temperature: float = 0.0
+
+    blocklist: str = "blorptium,zanthar protocol"
+    """Comma-separated words for the ``keyword-blocklist`` guard. Defaults are fictional."""
+
+    def blocklist_words(self) -> list[str]:
+        return [w.strip() for w in self.blocklist.split(",") if w.strip()]

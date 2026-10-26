@@ -24,6 +24,7 @@ Settings (environment variables or `.env`):
 | `LANGCHAINGOV_MODEL` | (required) | Model name as LiteLLM exposes it |
 | `LANGCHAINGOV_BASE_URL` | `http://localhost:4000/v1` | OpenAI-compatible endpoint |
 | `LANGCHAINGOV_TEMPERATURE` | `0` | Sampling temperature |
+| `LANGCHAINGOV_BLOCKLIST` | `blorptium,zanthar protocol` | Comma-separated words for the `keyword-blocklist` guard (fictional defaults) |
 
 ## Commands
 
@@ -34,7 +35,25 @@ uv run langchaingov chat --system "You are terse." --model other-model --json "h
 uv run langchaingov version
 ```
 
-`chat` and `models` exit 1 with a hint when the key or model is missing, the proxy is unreachable, the key is rejected, or the model name is unknown.
+### Guardrails
+
+```sh
+uv run langchaingov guard list
+uv run langchaingov guard run --guard keyword-blocklist "Tell me about blorptium"
+uv run langchaingov guard run -g keyword-blocklist -g other-guard --json "hello"
+```
+
+`guard run` sends the prompt through every named guard in order, then the model, then every guard again on the reply. It prints a table of verdicts (stage, guard, action, reason) followed by the reply or the block reason. Exit codes: 0 allowed or modified, 2 blocked by a guard, 1 configuration or proxy error.
+
+Every guardrail implements one small protocol (`src/langchaingov/guards/base.py`): `check_input` and `check_output` each return a `Verdict` with an action (`allow`, `block`, `modify`), the text to continue with, and a reason. A guard that raises is treated as a block (fail closed). The registry in `guards/registry.py` maps names to factories; each guardrail family lives in its own package under `guards/`.
+
+Guards so far:
+
+| Guard | What it does |
+| --- | --- |
+| `keyword-blocklist` | Blocks input or output containing any listed word (case-insensitive, whole word). |
+
+`chat`, `models`, and `guard run` exit 1 with a hint when the key or model is missing, the proxy is unreachable, the key is rejected, or the model name is unknown.
 
 ## Development
 
@@ -47,4 +66,4 @@ Tests never touch the network: they run in an empty temp directory and inject fa
 
 ## Roadmap
 
-See `specs/roadmap.md`. Next up after this scaffold: the guardrail core (protocol, registry, chain) and an eval harness, then one phase per guardrail family (custom validators, LangChain middleware, Guardrails AI, NeMo Guardrails).
+See `specs/roadmap.md`. Next up: the eval harness, then one phase per guardrail family (custom validators, LangChain middleware, Guardrails AI, NeMo Guardrails).
