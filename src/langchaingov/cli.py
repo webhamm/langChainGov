@@ -17,7 +17,8 @@ from langchaingov.chain import GuardedChain
 from langchaingov.evals.loader import EvalSetError, load_set
 from langchaingov.evals.runner import Counts, EvalReport, run_eval
 from langchaingov.guards import registry
-from langchaingov.guards.base import GuardedResult, Guardrail
+from langchaingov.guards.base import GuardedResult, Guardrail, Stage
+from langchaingov.guards.middleware import hitl
 from langchaingov.llm import list_models, make_chat_model, message_text
 from langchaingov.settings import Settings
 
@@ -166,7 +167,11 @@ def guard_run(
     """
     settings = Settings()
     llm, model_name = _configured_model(settings, model)
-    guards = _build_guards(guard, settings, llm)
+    hitl.default_policy = terminal_policy  # lc-hitl asks in the terminal during guard run
+    try:
+        guards = _build_guards(guard, settings, llm)
+    finally:
+        hitl.default_policy = None
     chain = GuardedChain(llm, guards, system=system)
     with _client_errors(settings, model_name):
         result = chain.invoke(prompt)
@@ -177,6 +182,13 @@ def guard_run(
         _print_result(result)
     if result.blocked:
         raise typer.Exit(EXIT_BLOCKED)
+
+
+def terminal_policy(text: str, stage: Stage) -> bool:
+    """Human-in-the-loop answer for ``lc-hitl``: ask in the terminal."""
+    err_console.print(f"[yellow]lc-hitl[/yellow] review this {stage}:", highlight=False)
+    err_console.print(text, markup=False, highlight=False)
+    return typer.confirm("Allow it?", default=False, err=True)
 
 
 def _result_payload(result: GuardedResult, model_name: str) -> dict[str, object]:

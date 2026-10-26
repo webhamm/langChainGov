@@ -8,20 +8,20 @@ Roadmap: Stage 2 — Guardrail families, phase 05. Branch (created when work sta
 
 ## 1. Quality gates
 
-- [ ] `make check` passes (lint, format check, strict type check, tests)
+- [x] `make check` passes (lint, format check, strict type check, tests)
 - [ ] CI is green on the branch
-- [ ] New code has unit tests; no test makes a network call
+- [x] New code has unit tests; no test makes a network call
 
 ## 2. Behavior
 
-- [ ] `lc-pii` redacts a fictional email in input and output via the middleware
-- [ ] `lc-hitl` blocks when the injected policy says block and allows otherwise
-- [ ] `lc-custom-hooks` blocks on the before-model phrase and rewrites on the after-model phrase
+- [x] `lc-pii` redacts a fictional email in input and output via the middleware
+- [x] `lc-hitl` blocks when the injected policy says block and allows otherwise
+- [x] `lc-custom-hooks` blocks on the before-model phrase and rewrites on the after-model phrase
 
 ## 3. Interfaces
 
-- [ ] CLI: the three guards appear in `guard list` and work with `guard run` and `guard eval`. Covered by tests
-- [ ] CLI: `guard run --guard lc-hitl` prompts the user interactively in a terminal
+- [x] CLI: the three guards appear in `guard list` and work with `guard run` and `guard eval`. Covered by tests
+- [x] CLI: `guard run --guard lc-hitl` prompts the user interactively in a terminal
 
 ## 4. Manual checks
 
@@ -30,16 +30,16 @@ Roadmap: Stage 2 — Guardrail families, phase 05. Branch (created when work sta
 
 ## 5. Docs and specs
 
-- [ ] The README covers the three guards; `docs/middleware-notes.md` exists
-- [ ] `specs/roadmap.md` marks phase 05 as done
-- [ ] No real personal data is committed (examples are fictional)
-- [ ] Every open question in `requirements.md` is resolved and recorded
+- [x] The README covers the three guards; `docs/middleware-notes.md` exists
+- [x] `specs/roadmap.md` marks phase 05 as done
+- [x] No real personal data is committed (examples are fictional)
+- [x] Every open question in `requirements.md` is resolved and recorded
 
 ## Run log
 
 | Date | Version | Inputs | Result | Reviewer notes |
 | --- | --- | --- | --- | --- |
-| | | | | |
+| 2026-10-26 | 0.5.0 | `uv run langchaingov guard eval -g lc-pii -g lc-custom-hooks --json` (offline, packaged set, 26 cases) | 13 matched, 0 false blocks, 13 missed: benign 6/6, pii 6/6 (all redacted by PIIMiddleware), jailbreak 1/6 (`developer mode` hook), off-topic 0/4, toxic 0/4. As expected: these guards only target PII and one phrase. | Terminal `lc-hitl` run and the `create_agent` spike against the real model wait on a local model in LiteLLM; CI skipped by decision. |
 
 ## Definition of done
 

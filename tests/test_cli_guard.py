@@ -29,7 +29,15 @@ def install_fake(monkeypatch: pytest.MonkeyPatch, reply: str = "the reply") -> N
 def test_guard_list_shows_builtins() -> None:
     result = runner.invoke(cli.app, ["guard", "list"])
     assert result.exit_code == 0, result.output
-    for name in ["keyword-blocklist", "pii-regex", "topic-allowlist", "llm-judge"]:
+    for name in [
+        "keyword-blocklist",
+        "pii-regex",
+        "topic-allowlist",
+        "llm-judge",
+        "lc-pii",
+        "lc-hitl",
+        "lc-custom-hooks",
+    ]:
         assert name in result.stdout
 
     result = runner.invoke(cli.app, ["guard", "list", "--json"])
@@ -146,3 +154,24 @@ def test_guard_run_proxy_error_is_reported_not_blocked(
     result = runner.invoke(cli.app, ["guard", "run", "-g", "llm-judge", "hello"])
     assert result.exit_code == 1
     assert "Could not reach LiteLLM" in result.output
+
+
+@pytest.mark.parametrize(("answer", "code"), [("y\n", 0), ("n\n", 2)])
+def test_guard_run_hitl_asks_in_terminal(
+    monkeypatch: pytest.MonkeyPatch, configured: None, answer: str, code: int
+) -> None:
+    from langchaingov.guards.middleware import hitl
+
+    install_fake(monkeypatch)
+    result = runner.invoke(cli.app, ["guard", "run", "-g", "lc-hitl", "hello"], input=answer)
+    assert result.exit_code == code, result.output
+    assert "review this input" in result.output
+    assert hitl.default_policy is None  # reset after the run
+
+
+def test_guard_eval_hitl_auto_blocks(monkeypatch: pytest.MonkeyPatch) -> None:
+    result = runner.invoke(cli.app, ["guard", "eval", "-g", "lc-hitl", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert all(r["actual"] == "block" for r in payload["rows"])
+    assert payload["totals"]["false_blocks"] == payload["by_tag"]["benign"]["total"]
