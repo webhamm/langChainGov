@@ -63,6 +63,13 @@ class Settings(BaseSettings):
     judge_rubric: Path | None = None
     """Plain-text rubric file for the ``llm-judge`` guard. Empty means: the built-in rubric."""
 
+    hooks_block_phrase: str = "developer mode"
+    """``lc-custom-hooks``: a prompt containing this phrase ends the run."""
+
+    hooks_rewrite_from: str = "blorptium"
+    hooks_rewrite_to: str = "[a mineral]"
+    """``lc-custom-hooks``: this word is rewritten in the reply."""
+
 
 def _split_csv(value: str) -> list[str]:
     return [w.strip() for w in value.split(",") if w.strip()]

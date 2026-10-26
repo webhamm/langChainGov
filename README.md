@@ -29,6 +29,8 @@ Settings (environment variables or `.env`):
 | `LANGCHAINGOV_TOPICS` | plant-care words | Comma-separated topic words for the `topic-allowlist` guard |
 | `LANGCHAINGOV_JUDGE_MODEL` | (chat model) | Model for the `llm-judge` guard; empty reuses `LANGCHAINGOV_MODEL` |
 | `LANGCHAINGOV_JUDGE_RUBRIC` | (built-in) | Path to a plain-text rubric file for the `llm-judge` guard |
+| `LANGCHAINGOV_HOOKS_BLOCK_PHRASE` | `developer mode` | `lc-custom-hooks`: a prompt containing this phrase is blocked |
+| `LANGCHAINGOV_HOOKS_REWRITE_FROM` / `_TO` | `blorptium` / `[a mineral]` | `lc-custom-hooks`: word rewritten in the reply |
 
 ## Commands
 
@@ -92,6 +94,16 @@ The built-in judge rubric covers prompt injection, harmful or abusive content, P
 
 Guards can be stacked, for example `-g pii-regex -g llm-judge`: the redacted prompt is what the judge and the model see.
 
+### LangChain-native middleware guards
+
+These wrap LangChain 1.x agent middleware (`langchain.agents.middleware`) behind the same protocol. The adapter in `src/langchaingov/guards/middleware/adapter.py` calls each middleware's `before_model` / `after_model` hook on a one-message synthetic agent state, so the middleware's own code decides without an agent loop or extra model call. See `docs/middleware-notes.md` for what was learned.
+
+| Guard | What it does |
+| --- | --- |
+| `lc-pii` | One `PIIMiddleware` per type: built-in `email`, `credit_card`, `url`, plus `phone` and `ssn` through custom detectors that reuse the regexes from `pii-regex`. Redacts to `[REDACTED_EMAIL]` etc., or blocks with `LANGCHAINGOV_PII_MODE=block`. Input and output. |
+| `lc-hitl` | Human-in-the-loop on the prompt using a LangGraph `interrupt`: `guard run` asks you in the terminal (y/n); `guard eval` has nobody to ask, so every prompt is blocked with that reason. (LangChain's built-in `HumanInTheLoopMiddleware` approves tool calls, which a no-tool chat never makes.) |
+| `lc-custom-hooks` | A `@before_model(can_jump_to=["end"])` hook that blocks a configured phrase and an `@after_model` hook that rewrites a configured word in the reply. The minimal custom middleware. |
+
 `chat`, `models`, and `guard run` exit 1 with a hint when the key or model is missing, the proxy is unreachable, the key is rejected, or the model name is unknown.
 
 ## Development
@@ -105,4 +117,4 @@ Tests never touch the network: they run in an empty temp directory and inject fa
 
 ## Roadmap
 
-See `specs/roadmap.md`. Custom validators are done; next up: LangChain-native middleware, then Guardrails AI and NeMo Guardrails as optional extras.
+See `specs/roadmap.md`. Custom validators and LangChain middleware are done; next up: Guardrails AI and NeMo Guardrails as optional extras.

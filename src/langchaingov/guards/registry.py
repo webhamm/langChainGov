@@ -43,10 +43,11 @@ def _ensure_builtins() -> None:
     if _builtins_loaded:
         return
     _builtins_loaded = True
-    # Imported lazily: the custom package imports this module to register itself.
-    from langchaingov.guards.custom import register_all
+    # Imported lazily: the guard packages import this module to register themselves.
+    from langchaingov.guards import custom, middleware
 
-    register_all()
+    custom.register_all()
+    middleware.register_all()
 
 
 def specs() -> list[GuardSpec]:

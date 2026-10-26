@@ -28,9 +28,9 @@ Use LangChain 1.x's built-in agent middleware (PII detection, human-in-the-loop,
 
 Check in with the user on each of these before implementing; if the answers change the phase plan, update `specs/roadmap.md` too.
 
-- Does the local Llama behind LiteLLM support tool calling well enough for `create_agent`? If not, should this phase use a plain chain with the middleware's underlying functions instead?
-- Which built-in middleware to cover: PII and human-in-the-loop (recommended) only, or also summarization and model-fallback for completeness?
-- How should human-in-the-loop behave in `guard eval`: auto-allow, auto-block, or skip those cases?
+- Does the local Llama behind LiteLLM support tool calling well enough for `create_agent`? If not, should this phase use a plain chain with the middleware's underlying functions instead? **Resolved (deferred):** no local model exists yet, so the phase is built against fake chat models. The adapter runs `create_agent` with no tools, which needs no tool calling from the model; whether the real model behaves is the manual check.
+- Which built-in middleware to cover: PII and human-in-the-loop (recommended) only, or also summarization and model-fallback for completeness? **Resolved:** PII, human-in-the-loop, and custom before/after-model hooks.
+- How should human-in-the-loop behave in `guard eval`: auto-allow, auto-block, or skip those cases? **Resolved:** auto-block; an unanswered interrupt is a block whose reason says a human would have been asked.
 
 (When the phase starts, append ` **Resolved:** <answer>.` to each question.)
 
