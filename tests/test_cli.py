@@ -2,7 +2,7 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
-import httpx2
+import httpx
 import openai
 import pytest
 from langchain_core.language_models import BaseChatModel
@@ -96,12 +96,12 @@ def test_chat_requires_model(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls == []
 
 
-def _request() -> httpx2.Request:
-    return httpx2.Request("POST", "http://localhost:4000/v1/chat/completions")
+def _request() -> httpx.Request:
+    return httpx.Request("POST", "http://localhost:4000/v1/chat/completions")
 
 
-def _response(status: int) -> httpx2.Response:
-    return httpx2.Response(status, request=_request())
+def _response(status: int) -> httpx.Response:
+    return httpx.Response(status, request=_request())
 
 
 @pytest.mark.parametrize(

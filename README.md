@@ -31,6 +31,10 @@ Settings (environment variables or `.env`):
 | `LANGCHAINGOV_JUDGE_RUBRIC` | (built-in) | Path to a plain-text rubric file for the `llm-judge` guard |
 | `LANGCHAINGOV_HOOKS_BLOCK_PHRASE` | `developer mode` | `lc-custom-hooks`: a prompt containing this phrase is blocked |
 | `LANGCHAINGOV_HOOKS_REWRITE_FROM` / `_TO` | `blorptium` / `[a mineral]` | `lc-custom-hooks`: word rewritten in the reply |
+| `LANGCHAINGOV_GR_PII_ENTITIES` | structured identifiers | `gr-pii`: Presidio entity types to detect; add `PERSON,LOCATION` etc. to opt into NER-based ones |
+| `LANGCHAINGOV_GR_TOXIC_THRESHOLD` | `0.5` | `gr-toxic`: block when any toxicity label scores at or above this |
+| `LANGCHAINGOV_GR_TOPIC_THRESHOLD` | `0.5` | `gr-topic`: the top topic must be valid and score at least this |
+| `LANGCHAINGOV_GR_VALID_TOPICS` / `_INVALID_TOPICS` | plant-care / finance, taxes, ... | `gr-topic`: candidate labels for the zero-shot classifier |
 
 ## Commands
 
@@ -104,6 +108,22 @@ These wrap LangChain 1.x agent middleware (`langchain.agents.middleware`) behind
 | `lc-hitl` | Human-in-the-loop on the prompt using a LangGraph `interrupt`: `guard run` asks you in the terminal (y/n); `guard eval` has nobody to ask, so every prompt is blocked with that reason. (LangChain's built-in `HumanInTheLoopMiddleware` approves tool calls, which a no-tool chat never makes.) |
 | `lc-custom-hooks` | A `@before_model(can_jump_to=["end"])` hook that blocks a configured phrase and an `@after_model` hook that rewrites a configured word in the reply. The minimal custom middleware. |
 
+### Guardrails AI guards (optional extra)
+
+```sh
+uv sync --extra guardrails-ai
+```
+
+These run validators through the `guardrails-ai` package's `Guard` / `Validator` API. Without the extra they show as not installed in `guard list` and `guard run` prints the install command. The three validators are written in this repo (`src/langchaingov/guards/guardrails_ai/validators.py`) on the same engines the hub versions use, because the hub needs an account; see `docs/guardrails-ai-notes.md` for that and for the `openai` version side effect of the extra.
+
+| Guard | What it does |
+| --- | --- |
+| `gr-pii` | Presidio finds PII entities (by default the structured ones: email, phone, SSN, card, IBAN, IP, passport, licence, bank, crypto) and anonymises them to `<EMAIL_ADDRESS>` etc. (`OnFailAction.FIX`), or blocks with `LANGCHAINGOV_PII_MODE=block`. Input and output. |
+| `gr-toxic` | A local transformers toxicity classifier (`unitary/toxic-bert`, downloaded on first use); blocks when any label scores at or above the threshold. Input and output. |
+| `gr-topic` | A local zero-shot classifier scores the prompt against valid and invalid topic labels; blocks unless the top label is valid. Input only. |
+
+The adapter switches off the package's hub telemetry in memory for this process.
+
 `chat`, `models`, and `guard run` exit 1 with a hint when the key or model is missing, the proxy is unreachable, the key is rejected, or the model name is unknown.
 
 ## Development
@@ -117,4 +137,4 @@ Tests never touch the network: they run in an empty temp directory and inject fa
 
 ## Roadmap
 
-See `specs/roadmap.md`. Custom validators and LangChain middleware are done; next up: Guardrails AI and NeMo Guardrails as optional extras.
+See `specs/roadmap.md`. Custom validators, LangChain middleware, and Guardrails AI are done; next up: NeMo Guardrails as an optional extra.

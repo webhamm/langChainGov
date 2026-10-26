@@ -51,7 +51,7 @@ GUARD_OPTION = typer.Option(
 
 def fail(message: str, code: int = EXIT_ERROR) -> None:
     """Print an error to stderr and exit with ``code``."""
-    err_console.print(f"[red]error:[/red] {message}")
+    err_console.print(f"[red]error:[/red] {message}", soft_wrap=True)
     raise typer.Exit(code)
 
 
@@ -76,7 +76,7 @@ def _configured_model(
 def _build_guards(names: list[str], settings: Settings, llm: BaseChatModel) -> list[Guardrail]:
     try:
         return [registry.get(name, settings, llm) for name in names]
-    except registry.UnknownGuardError as exc:
+    except (registry.UnknownGuardError, registry.MissingExtraError) as exc:
         fail(str(exc))
     raise AssertionError("unreachable")
 

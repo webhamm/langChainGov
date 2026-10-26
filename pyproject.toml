@@ -1,6 +1,6 @@
 [project]
 name = "langchaingov"
-version = "0.5.0"
+version = "0.6.0"
 description = "A learning sandbox for LangChain guardrails against a local model served through LiteLLM"
 readme = "README.md"
 authors = [
@@ -18,6 +18,16 @@ dependencies = [
 
 [project.scripts]
 langchaingov = "langchaingov.cli:app"
+
+[project.optional-dependencies]
+guardrails-ai = [
+    "en-core-web-sm",
+    "guardrails-ai>=0.11",
+    "presidio-analyzer>=2.2",
+    "presidio-anonymizer>=2.2",
+    "torch>=2.2",
+    "transformers>=4.40",
+]
 
 [dependency-groups]
 dev = [
@@ -43,6 +53,13 @@ python_version = "3.12"
 strict = true
 files = ["src", "tests"]
 
+[[tool.mypy.overrides]]
+module = ["guardrails.*", "guardrails_ai.*", "presidio_analyzer.*", "presidio_anonymizer.*", "transformers.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.uv.sources]
+en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }

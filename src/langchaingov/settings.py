@@ -70,6 +70,33 @@ class Settings(BaseSettings):
     hooks_rewrite_to: str = "[a mineral]"
     """``lc-custom-hooks``: this word is rewritten in the reply."""
 
+    gr_toxic_threshold: float = 0.5
+    """``gr-toxic``: block when any toxicity label scores at or above this."""
+
+    gr_topic_threshold: float = 0.5
+    """``gr-topic``: the top topic must be a valid one and score at least this."""
+
+    gr_pii_entities: str = (
+        "EMAIL_ADDRESS,PHONE_NUMBER,US_SSN,CREDIT_CARD,IBAN_CODE,IP_ADDRESS,"
+        "US_PASSPORT,US_DRIVER_LICENSE,US_BANK_NUMBER,CRYPTO"
+    )
+    """``gr-pii``: Presidio entities to look for. The default is the structured
+    identifiers; NER-based ones (PERSON, LOCATION, DATE_TIME, ORGANIZATION, URL, NRP)
+    are noisy with the small spaCy model and can be added here."""
+
+    def gr_pii_entity_list(self) -> list[str]:
+        return _split_csv(self.gr_pii_entities)
+
+    gr_valid_topics: str = "houseplants,plant care,gardening"
+    gr_invalid_topics: str = "finance,taxes,medicine,homework,politics,insults"
+    """``gr-topic``: comma-separated candidate labels for the zero-shot classifier."""
+
+    def gr_valid_topic_list(self) -> list[str]:
+        return _split_csv(self.gr_valid_topics)
+
+    def gr_invalid_topic_list(self) -> list[str]:
+        return _split_csv(self.gr_invalid_topics)
+
 
 def _split_csv(value: str) -> list[str]:
     return [w.strip() for w in value.split(",") if w.strip()]

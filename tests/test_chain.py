@@ -85,10 +85,10 @@ def test_check_prompt_runs_input_guards_only() -> None:
 
 
 def test_openai_errors_propagate_instead_of_failing_closed() -> None:
-    import httpx2
+    import httpx
     import openai
 
-    request = httpx2.Request("POST", "http://localhost:4000/v1/chat/completions")
+    request = httpx.Request("POST", "http://localhost:4000/v1/chat/completions")
 
     class Exploding:
         name = "exploding"
