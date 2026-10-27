@@ -40,6 +40,7 @@ def test_guard_list_shows_builtins() -> None:
         "gr-pii",
         "gr-toxic",
         "gr-topic",
+        "nemo-rails",
     ]:
         assert name in result.stdout
 
@@ -190,3 +191,13 @@ def test_guard_run_missing_extra_hint(monkeypatch: pytest.MonkeyPatch, configure
     assert "guard 'gr-pii' needs the 'guardrails-ai' extra: uv sync --extra guardrails-ai" in (
         result.output
     )
+
+
+def test_guard_run_missing_nemo_hint(monkeypatch: pytest.MonkeyPatch, configured: None) -> None:
+    from langchaingov.guards import nemo
+
+    install_fake(monkeypatch)
+    monkeypatch.setattr(nemo, "is_installed", lambda: False)
+    result = runner.invoke(cli.app, ["guard", "run", "-g", "nemo-rails", "hello"])
+    assert result.exit_code == 1
+    assert "guard 'nemo-rails' needs the 'nemo' extra: uv sync --extra nemo" in result.output

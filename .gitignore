@@ -16,3 +16,6 @@ build/
 .DS_Store
 .idea/
 .vscode/
+
+# NeMo Guardrails / FastEmbed model cache (relative to the working directory)
+.cache/

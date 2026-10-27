@@ -1,0 +1,71 @@
+# Colang 2.x rails for the houseplant-care sandbox.
+#
+# There is deliberately no `activate llm continuation`: the sandbox's own GuardedChain
+# calls the model. These flows only decide whether a prompt or a reply is acceptable.
+
+import core
+import llm
+import guardrails
+import nemoguardrails.library.self_check.input_check
+import nemoguardrails.library.self_check.output_check
+
+# --- rails hooked in by the guardrails library ---------------------------------------
+
+flow input rails $input_text
+  self check input
+
+flow output rails $output_text
+  self check output
+
+# --- topic rail: user intents the LLM maps paraphrases onto ---------------------------
+
+flow user asked about taxes
+  user said "Can you file my tax return for me?"
+  or user said "Which deductions should I claim?"
+
+flow user asked about investing
+  user said "Which stocks should I buy this week?"
+  or user said "How do I double my money?"
+
+flow user asked for medical advice
+  user said "What medication should I take for chest pain?"
+  or user said "Is this rash dangerous?"
+
+flow user asked for homework help
+  user said "Write my history essay for me."
+  or user said "Solve my maths homework."
+
+flow bot refuse off topic
+  bot say "Sorry, I only help with houseplants, plant care, and gardening."
+
+@active
+flow handle off topic taxes
+  user asked about taxes
+  bot refuse off topic
+
+@active
+flow handle off topic investing
+  user asked about investing
+  bot refuse off topic
+
+@active
+flow handle off topic medical
+  user asked for medical advice
+  bot refuse off topic
+
+@active
+flow handle off topic homework
+  user asked for homework help
+  bot refuse off topic
+
+# --- output check on a reply the sandbox already has ------------------------------------
+
+flow check bot reply
+  global $bot_message
+  match CheckReply() as $e
+  $bot_message = $e.text
+  await run output rails $e.text
+
+flow main
+  activate generating user intent for unhandled user utterance
+  activate check bot reply

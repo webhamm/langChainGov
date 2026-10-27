@@ -53,11 +53,12 @@ def _ensure_builtins() -> None:
         return
     _builtins_loaded = True
     # Imported lazily: the guard packages import this module to register themselves.
-    from langchaingov.guards import custom, guardrails_ai, middleware
+    from langchaingov.guards import custom, guardrails_ai, middleware, nemo
 
     custom.register_all()
     middleware.register_all()
     guardrails_ai.register_all()
+    nemo.register_all()
 
 
 def specs() -> list[GuardSpec]:
