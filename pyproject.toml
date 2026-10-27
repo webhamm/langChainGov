@@ -1,6 +1,6 @@
 [project]
 name = "langchaingov"
-version = "0.6.0"
+version = "0.7.0"
 description = "A learning sandbox for LangChain guardrails against a local model served through LiteLLM"
 readme = "README.md"
 authors = [
@@ -28,6 +28,9 @@ guardrails-ai = [
     "torch>=2.2",
     "transformers>=4.40",
 ]
+nemo = [
+    "nemoguardrails>=0.24",
+]
 
 [dependency-groups]
 dev = [
@@ -54,7 +57,7 @@ strict = true
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["guardrails.*", "guardrails_ai.*", "presidio_analyzer.*", "presidio_anonymizer.*", "transformers.*"]
+module = ["guardrails.*", "guardrails_ai.*", "presidio_analyzer.*", "presidio_anonymizer.*", "transformers.*", "nemoguardrails.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

@@ -28,9 +28,9 @@ Run NVIDIA NeMo Guardrails with a Colang config (input and output rails) against
 
 Check in with the user on each of these before implementing; if the answers change the phase plan, update `specs/roadmap.md` too.
 
-- Colang 1.0 (simpler, widely documented) or Colang 2.x for the rails?
-- Which rails for v1: self-check input, self-check output, and a topic rail (recommended), or also the built-in jailbreak heuristics?
-- NeMo must call the model itself for self-check rails. Is it acceptable that it bypasses our `ChatOpenAI` and talks to LiteLLM directly with the same settings?
+- Colang 1.0 (simpler, widely documented) or Colang 2.x for the rails? **Resolved:** Colang 2.x.
+- Which rails for v1: self-check input, self-check output, and a topic rail (recommended), or also the built-in jailbreak heuristics? **Resolved:** self-check input, self-check output, and a topic rail written as Colang 2 flows. No jailbreak heuristics.
+- NeMo must call the model itself for self-check rails. Is it acceptable that it bypasses our `ChatOpenAI` and talks to LiteLLM directly with the same settings? **Resolved:** yes; the rails config is rendered from the sandbox settings (base URL, model, key) at build time so there is one source of truth.
 
 (When the phase starts, append ` **Resolved:** <answer>.` to each question.)
 

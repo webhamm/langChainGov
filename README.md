@@ -124,6 +124,29 @@ These run validators through the `guardrails-ai` package's `Guard` / `Validator`
 
 The adapter switches off the package's hub telemetry in memory for this process.
 
+### NeMo Guardrails guard (optional extra)
+
+```sh
+uv sync --extra nemo
+```
+
+| Guard | What it does |
+| --- | --- |
+| `nemo-rails` | NVIDIA NeMo Guardrails with a Colang 2 config (`src/langchaingov/guards/nemo/rails/`): a self-check input prompt, a self-check output prompt, and an off-topic rail written as Colang intent flows (taxes, investing, medical, homework) that an intent prompt generalises to paraphrases. The rails call the model themselves through LiteLLM using the same settings. Input and output. |
+
+The config has no `llm continuation`: the sandbox's chain still produces the answer, NeMo only decides. See `docs/nemo-notes.md` for how that was made to fit, and what did not work.
+
+## Comparing the four families
+
+Every guard answers the same protocol and runs on the same eval set, so `guard eval -g <name>` (offline, input guards only) or `guard eval -g <name> --with-model` gives comparable numbers. Rough character of each family, from building them:
+
+| Family | Guards | Setup cost | Model calls per turn | Strength |
+| --- | --- | --- | --- | --- |
+| Custom validators | `keyword-blocklist`, `pii-regex`, `topic-allowlist`, `llm-judge` | none | 0 (judge: 1 per stage) | Transparent; you own every line |
+| LangChain middleware | `lc-pii`, `lc-hitl`, `lc-custom-hooks` | none | 0 | Plugs straight into `create_agent`; human-in-the-loop |
+| Guardrails AI | `gr-pii`, `gr-toxic`, `gr-topic` | heavy extra, model downloads | 0 | Rich validators (Presidio, classifiers), explicit on-fail actions |
+| NeMo Guardrails | `nemo-rails` | extra, embedding download | 2 to 3 per stage | Dialog-level rails in readable Colang; intent generalisation |
+
 `chat`, `models`, and `guard run` exit 1 with a hint when the key or model is missing, the proxy is unreachable, the key is rejected, or the model name is unknown.
 
 ## Development
@@ -137,4 +160,4 @@ Tests never touch the network: they run in an empty temp directory and inject fa
 
 ## Roadmap
 
-See `specs/roadmap.md`. Custom validators, LangChain middleware, and Guardrails AI are done; next up: NeMo Guardrails as an optional extra.
+See `specs/roadmap.md`. All four guardrail families are done. Remaining ideas are listed under "Later / optional" in `specs/roadmap.md`.
