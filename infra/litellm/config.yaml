@@ -1,0 +1,19 @@
+# Repo-owned LiteLLM proxy for the local model. `make llm-up` (scripts/llm/up.sh)
+# starts it with uvx on :4000, no Docker. Cloud models live in the shared
+# si-agent-platform-proxy config, not here: this proxy is local only.
+model_list:
+  - model_name: llama3.2-3b-32k
+    litellm_params:
+      # The tag built from infra/ollama/llama3.2-3b-32k.Modelfile.
+      model: ollama_chat/langchaingov-llama3.2-3b:32k
+      api_base: http://localhost:11434
+    model_info:
+      max_input_tokens: 32768
+
+litellm_settings:
+  # Drop OpenAI parameters Ollama does not take instead of failing the request.
+  drop_params: true
+
+general_settings:
+  # Read from .env (passed by `uvx --env-file`); never written here.
+  master_key: os.environ/LITELLM_MASTER_KEY

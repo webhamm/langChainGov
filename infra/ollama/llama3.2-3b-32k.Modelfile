@@ -1,0 +1,9 @@
+# llama3.2:3b served with a 32k context window for langchaingov.
+# Built by scripts/llm/up.sh (make llm-up) as the tag langchaingov-llama3.2-3b:32k.
+#
+# Ollama serves a much smaller window than the model's advertised 128k unless
+# num_ctx is raised. Pinning it here puts the served window under version control
+# and leaves Ollama's global defaults (and every other model) untouched.
+# Keep num_ctx equal to max_input_tokens in infra/litellm/config.yaml (a test checks).
+FROM llama3.2:3b
+PARAMETER num_ctx 32768
