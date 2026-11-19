@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     golden_cloud_token_cap: int = 50_000
     """Most estimated prompt tokens a ``golden run`` may send to a model that is not local."""
 
+    drift_min_similarity: float = 0.90
+    """``golden compare``: a reply less similar than this to the baseline's is drift."""
+
+    drift_prompt_token_pct: float = 2.0
+    """``golden compare``: reported prompt tokens moving more than this percent is an
+    environment-change warning (tokenizer, chat template, or serving setup)."""
+
     blocklist: str = "blorptium,zanthar protocol"
     """Comma-separated words for the ``keyword-blocklist`` guard. Defaults are fictional."""
 

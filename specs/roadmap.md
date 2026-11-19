@@ -24,7 +24,7 @@ From the feature request in `specs/goldenset-general-eval.md`. Phase 8 is the pr
 8. ✅ **Local model stack.** `make llm-up` stands up `llama3.2:3b` with a 32k window (versioned Ollama Modelfile) behind a repo-owned LiteLLM proxy run with `uvx`, plus `llm-down`, `llm-status`, and `llm-smoke`.
 9. ✅ **Payload generator.** Model profiles, a seeded needle-in-a-haystack golden set, and `golden build`, which generates context-filling payloads at a 25/50/75/90% fill ladder sized with tiktoken.
 10. ✅ **Golden runner.** `golden run` sends each payload with fixed parameters, scores needle recall, and appends every response with usage, latency, and hashes to a JSONL run file; local-first with `--allow-cloud` and a token cap.
-11. **Drift compare.** `golden runs`, `golden baseline`, and `golden compare`, which diff a run against a pinned baseline per fill level (recall, text similarity, length, latency) and exit non-zero on drift.
+11. ✅ **Drift compare.** `golden runs`, `golden baseline`, and `golden compare`, which diff a run against a pinned baseline per fill level (recall, text similarity, length, latency) and exit non-zero on drift.
 
 ## Later / optional
 
@@ -39,4 +39,5 @@ From the feature request in `specs/goldenset-general-eval.md`. Phase 8 is the pr
 - Golden set: summarize-style cases on a fixed fictional corpus (drift without a known answer).
 - Golden set: model-specific token counts through LiteLLM's token-counter endpoint.
 - Golden set: `golden trend` across many runs (SQLite or a small chart), and scheduled runs.
+- Golden set: `golden compare --against previous` (compare with the run just before, not the baseline).
 - Golden set: run payloads through `GuardedChain --guard ...` to see whether guards change under long context.
