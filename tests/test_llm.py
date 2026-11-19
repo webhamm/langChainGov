@@ -26,3 +26,21 @@ def test_make_chat_model_model_override() -> None:
     model = make_chat_model(settings, model="other-model")
     assert isinstance(model, ChatOpenAI)
     assert model.model_name == "other-model"
+
+
+def test_make_chat_model_pins_request_params() -> None:
+    settings = Settings(model="m", api_key="sk-test")
+    model = make_chat_model(settings, max_tokens=1024, timeout=600, seed=7, max_retries=0)
+    assert isinstance(model, ChatOpenAI)
+    assert (model.max_tokens, model.request_timeout, model.seed, model.max_retries) == (
+        1024,
+        600,
+        7,
+        0,
+    )
+
+
+def test_make_chat_model_leaves_client_defaults_alone() -> None:
+    model = make_chat_model(Settings(model="m", api_key="sk-test"))
+    assert isinstance(model, ChatOpenAI)
+    assert (model.max_tokens, model.request_timeout, model.seed) == (None, None, None)

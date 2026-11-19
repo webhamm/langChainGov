@@ -3,8 +3,8 @@
 from typing import Any
 
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
-from langchain_core.messages import BaseMessage
-from langchain_core.outputs import ChatResult
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 from pydantic import Field
 
 from langchaingov.guards.base import Stage, Verdict
@@ -39,6 +39,45 @@ class RaisingChatModel(FakeListChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         raise self.error
+
+
+class UsageFakeChatModel(FakeListChatModel):
+    """A fake whose replies carry token usage and a finish reason, like a real
+    OpenAI-style reply. ``input_tokens`` of ``None`` reports a quarter of the prompt's
+    characters. ``errors`` maps a 0-based call number to the exception that call raises."""
+
+    input_tokens: int | None = None
+    finish_reason: str = "stop"
+    errors: dict[int, Exception] = Field(default_factory=dict)
+    seen: list[list[BaseMessage]] = Field(default_factory=list)
+    calls: int = 0
+
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        call = self.calls
+        self.calls += 1
+        self.seen.append(list(messages))
+        if call in self.errors:
+            raise self.errors[call]
+        text = self.responses[call % len(self.responses)]
+        chars = sum(len(str(m.content)) for m in messages)
+        tokens_in = self.input_tokens if self.input_tokens is not None else chars // 4
+        tokens_out = len(text) // 4
+        message = AIMessage(
+            content=text,
+            usage_metadata={
+                "input_tokens": tokens_in,
+                "output_tokens": tokens_out,
+                "total_tokens": tokens_in + tokens_out,
+            },
+            response_metadata={"finish_reason": self.finish_reason},
+        )
+        return ChatResult(generations=[ChatGeneration(message=message)])
 
 
 class StubGuard:

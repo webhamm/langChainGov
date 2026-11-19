@@ -49,21 +49,24 @@ def test_profiles_must_be_a_mapping() -> None:
         load_profiles("models:\n  m:\n    context_tokens: -1\n")
 
 
-PROFILES = {"local-m": ModelProfile(name="local-m", context_tokens=8000, local=True)}
+PROFILES = {
+    "local-m": ModelProfile(name="local-m", context_tokens=8000, local=True, supports_seed=True)
+}
 
 
 def test_known_model_resolves_to_its_profile() -> None:
     assert resolve_profile("local-m", None, PROFILES).context_tokens == 8000
 
 
-def test_context_overrides_the_window_but_keeps_the_local_flag() -> None:
+def test_context_overrides_only_the_window_of_a_known_profile() -> None:
     profile = resolve_profile("local-m", 4000, PROFILES)
-    assert (profile.context_tokens, profile.local) == (4000, True)
+    assert (profile.context_tokens, profile.local, profile.supports_seed) == (4000, True, True)
+    assert PROFILES["local-m"].context_tokens == 8000  # the stored profile is untouched
 
 
 def test_unknown_model_with_context_is_not_local() -> None:
     profile = resolve_profile("cloud-m", 100_000, PROFILES)
-    assert (profile.name, profile.local) == ("cloud-m", False)
+    assert (profile.name, profile.local, profile.supports_seed) == ("cloud-m", False, False)
 
 
 def test_unknown_model_without_context_names_the_fix() -> None:

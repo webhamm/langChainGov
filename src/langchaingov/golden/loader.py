@@ -59,16 +59,14 @@ def resolve_profile(
     context: int | None,
     profiles: dict[str, ModelProfile] | None = None,
 ) -> ModelProfile:
-    """The profile for ``model``. ``context`` overrides the window; a model without a
-    profile needs it and counts as not local."""
+    """The profile for ``model``. ``context`` overrides only the window of a known profile
+    (its other flags are kept); a model without a profile needs it and counts as not local."""
     profiles = load_profiles() if profiles is None else profiles
     known = profiles.get(model) if model else None
     if context is not None:
-        return ModelProfile(
-            name=model or "custom",
-            context_tokens=context,
-            local=known.local if known else False,
-        )
+        if known is not None:
+            return known.model_copy(update={"context_tokens": context})
+        return ModelProfile(name=model or "custom", context_tokens=context)
     if known is not None:
         return known
     if not model:

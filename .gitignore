@@ -15,6 +15,9 @@ build/
 # Local model stack: LiteLLM pid and log (scripts/llm/)
 .run/
 
+# Golden-set run files (langchaingov golden run)
+runs/
+
 # Editors / OS
 .DS_Store
 .idea/

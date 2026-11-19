@@ -39,3 +39,10 @@ def test_accepts_litellm_master_key_alias(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_api_key_can_be_passed_by_field_name() -> None:
     assert Settings(api_key="sk-direct").api_key == "sk-direct"
+
+
+def test_golden_run_defaults() -> None:
+    settings = Settings()
+    assert settings.runs_dir == Path("runs/golden")
+    assert settings.golden_timeout == 600
+    assert settings.golden_cloud_token_cap == 50_000

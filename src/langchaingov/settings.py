@@ -38,6 +38,15 @@ class Settings(BaseSettings):
 
     temperature: float = 0.0
 
+    runs_dir: Path = Path("runs/golden")
+    """Where ``golden run`` writes one JSONL file per run (git-ignored)."""
+
+    golden_timeout: float = 600.0
+    """Seconds one golden-set request may take; a 90% local payload takes about 2 minutes."""
+
+    golden_cloud_token_cap: int = 50_000
+    """Most estimated prompt tokens a ``golden run`` may send to a model that is not local."""
+
     blocklist: str = "blorptium,zanthar protocol"
     """Comma-separated words for the ``keyword-blocklist`` guard. Defaults are fictional."""
 

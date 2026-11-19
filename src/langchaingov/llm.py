@@ -1,5 +1,7 @@
 """The one place that knows how to build a chat model for the LiteLLM proxy."""
 
+from typing import Any
+
 import openai
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage
@@ -9,18 +11,35 @@ from pydantic import SecretStr
 from langchaingov.settings import Settings
 
 
-def make_chat_model(settings: Settings, model: str | None = None) -> BaseChatModel:
+def make_chat_model(
+    settings: Settings,
+    model: str | None = None,
+    *,
+    max_tokens: int | None = None,
+    timeout: float | None = None,
+    seed: int | None = None,
+    max_retries: int | None = None,
+) -> BaseChatModel:
     """Return a ``ChatOpenAI`` pointed at the LiteLLM proxy described by ``settings``.
 
     ``model`` overrides ``settings.model`` when given. No network call is made here;
     the client connects lazily on first invocation. An empty key is replaced by a
     placeholder so the client can be built for offline use; the proxy rejects it on use.
+    The keyword arguments pin request parameters (the golden runner uses them); left as
+    ``None`` they keep the client's defaults.
     """
+    pinned: dict[str, Any] = {
+        "max_tokens": max_tokens,
+        "timeout": timeout,
+        "seed": seed,
+        "max_retries": max_retries,
+    }
     return ChatOpenAI(
         base_url=settings.base_url,
         api_key=SecretStr(settings.api_key or "unset"),
         model=model or settings.model,
         temperature=settings.temperature,
+        **{name: value for name, value in pinned.items() if value is not None},
     )
 
 
