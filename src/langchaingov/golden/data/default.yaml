@@ -1,0 +1,41 @@
+# The default golden set: five fictional facts planted at fixed depths in seeded,
+# fictional harbour-survey filler (see golden/filler.py).
+#
+# Any change that alters payload bytes (needles, instruction, seed, or filler.py) must
+# bump generator_version, so drift comparisons never mix two different tests.
+name: default
+description: Five fictional facts at depths 5/25/50/75/95% of a seeded harbour-survey log.
+generator_version: 1
+seed: 20261119
+fill_levels: [0.25, 0.5, 0.75, 0.9]
+output_reserve_tokens: 1024
+system: You are a careful assistant. Answer only from the document the user gives you.
+instruction: >-
+  Answer each question below using only the document above. Reply with exactly one
+  line per question, in the form `<id>: <answer>`, and nothing else.
+needles:
+  - id: vault-door
+    depth: 0.05
+    fact: The vault door on Marrowind Station is painted heron blue.
+    question: What color is the vault door on Marrowind Station?
+    answer: heron blue
+  - id: ferry-captain
+    depth: 0.25
+    fact: The night ferry to Ostrel Reach is captained by Ilsabet Morrow.
+    question: Who captains the night ferry to Ostrel Reach?
+    answer: Ilsabet Morrow
+  - id: logbook-page
+    depth: 0.5
+    fact: The Glasswick lighthouse logbook ends on page 4817.
+    question: On which page does the Glasswick lighthouse logbook end?
+    answer: "4817"
+  - id: orchard-password
+    depth: 0.75
+    fact: The gate password for the Tollmere orchard is copper finch.
+    question: What is the gate password for the Tollmere orchard?
+    answer: copper finch
+  - id: flood-month
+    depth: 0.95
+    fact: The Kestrel Archive was flooded in the month of Brumewane.
+    question: In which month was the Kestrel Archive flooded?
+    answer: Brumewane

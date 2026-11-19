@@ -16,6 +16,10 @@ from langchaingov import __version__
 from langchaingov.chain import GuardedChain
 from langchaingov.evals.loader import EvalSetError, load_set
 from langchaingov.evals.runner import Counts, EvalReport, run_eval
+from langchaingov.golden import loader as golden_loader
+from langchaingov.golden.generator import build_payload, usable_tokens
+from langchaingov.golden.models import Payload
+from langchaingov.golden.tokens import TiktokenCounter, TokenCounter, TokenizerUnavailable
 from langchaingov.guards import registry
 from langchaingov.guards.base import GuardedResult, Guardrail, Stage
 from langchaingov.guards.middleware import hitl
@@ -28,6 +32,11 @@ app = typer.Typer(
 )
 guard_app = typer.Typer(help="List and run guardrails.", no_args_is_help=True)
 app.add_typer(guard_app, name="guard")
+golden_app = typer.Typer(
+    help="Golden-set payloads that fill a model's context window, for drift runs.",
+    no_args_is_help=True,
+)
+app.add_typer(golden_app, name="golden")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -40,6 +49,7 @@ ModelFactory = Callable[[Settings, str | None], BaseChatModel]
 # Tests replace these with fakes.
 model_factory: ModelFactory = make_chat_model
 models_lister: Callable[[Settings], list[str]] = list_models
+token_counter_factory: Callable[[], TokenCounter] = TiktokenCounter
 
 JSON_FLAG = typer.Option(False, "--json", help="Print JSON instead of text.")
 SYSTEM_OPTION = typer.Option(None, "--system", "-s", help="Optional system prompt.")
@@ -284,3 +294,91 @@ def _count_cells(counts: Counts) -> list[str]:
         str(counts.false_blocks),
         str(counts.missed_blocks),
     ]
+
+
+GOLDEN_SET_OPTION = typer.Option(
+    None, "--set", help="Golden set YAML file. Default: the packaged five-needle set."
+)
+CONTEXT_OPTION = typer.Option(
+    None, "--context", min=1, help="Context window in tokens; overrides the model's profile."
+)
+LEVEL_OPTION = typer.Option(
+    None, "--level", "-l", help="Fill level in (0, 1]; repeatable. Default: the set's ladder."
+)
+DUMP_OPTION = typer.Option(
+    None, "--dump", file_okay=False, help="Also write each prompt to DIR/<case>.txt."
+)
+
+
+@golden_app.command("build")
+def golden_build(
+    set_path: Path | None = GOLDEN_SET_OPTION,
+    model: str | None = MODEL_OPTION,
+    context: int | None = CONTEXT_OPTION,
+    level: list[float] | None = LEVEL_OPTION,
+    dump: Path | None = DUMP_OPTION,
+    json_output: bool = JSON_FLAG,
+) -> None:
+    """Generate the golden-set payloads for a model and print their size and hash.
+
+    Nothing is sent to the model. The same set, model profile, and level always give
+    the same SHA-256. Exit code 1 on errors.
+    """
+    settings = Settings()
+    counter = token_counter_factory()
+    try:
+        golden = golden_loader.load_set(set_path)
+        profile = golden_loader.resolve_profile(model or settings.model or None, context)
+        levels = level or golden.fill_levels
+        payloads = [build_payload(golden, profile, lv, counter) for lv in levels]
+        usable = usable_tokens(golden, profile, counter)
+    except (golden_loader.GoldenSetError, TokenizerUnavailable) as exc:
+        fail(str(exc))
+
+    if dump is not None:
+        dump.mkdir(parents=True, exist_ok=True)
+        for payload in payloads:
+            (dump / f"{payload.case_id}.txt").write_text(payload.prompt, encoding="utf-8")
+
+    if json_output:
+        info = {
+            "set": golden.name,
+            "generator_version": golden.generator_version,
+            "seed": golden.seed,
+            "model": profile.name,
+            "context_tokens": profile.context_tokens,
+            "local": profile.local,
+            "usable_tokens": usable,
+            "counter": counter.name,
+            "payloads": [p.model_dump() for p in payloads],
+        }
+        console.print_json(json.dumps(info))
+        return
+
+    _print_payloads(payloads)
+    console.print(
+        f"Set {golden.name!r} (generator v{golden.generator_version}, seed {golden.seed}), "
+        f"model {profile.name} ({'local' if profile.local else 'not local'}): "
+        f"{profile.context_tokens} context, {usable} usable after "
+        f"{golden.output_reserve_tokens} reserved for the answer and the system prompt, "
+        f"counted with {counter.name}",
+        highlight=False,
+    )
+    if dump is not None:
+        console.print(f"Prompts written to {dump}/", highlight=False)
+
+
+def _print_payloads(payloads: list[Payload]) -> None:
+    table = Table("Case", "Level", "Target", "Tokens", "Chars", "SHA-256", "Needle depths")
+    for p in payloads:
+        depths = " ".join(f"{d:.0%}" for d in p.needle_depths.values())
+        table.add_row(
+            p.case_id,
+            f"{p.level:.0%}",
+            str(p.target_tokens),
+            str(p.est_tokens),
+            str(p.chars),
+            p.sha256[:12],
+            depths,
+        )
+    console.print(table)

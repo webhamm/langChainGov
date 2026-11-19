@@ -22,7 +22,7 @@ Each phase's details are in `specs/<date>-phase-NN-<name>/`.
 From the feature request in `specs/goldenset-general-eval.md`. Phase 8 is the prerequisite local model; phases 9 to 11 are the MVP: after phase 11, `golden run` twice and `golden compare` reports drift end to end.
 
 8. ✅ **Local model stack.** `make llm-up` stands up `llama3.2:3b` with a 32k window (versioned Ollama Modelfile) behind a repo-owned LiteLLM proxy run with `uvx`, plus `llm-down`, `llm-status`, and `llm-smoke`.
-9. **Payload generator.** Model profiles, a seeded needle-in-a-haystack golden set, and `golden build`, which generates context-filling payloads at a 25/50/75/90% fill ladder sized with tiktoken.
+9. ✅ **Payload generator.** Model profiles, a seeded needle-in-a-haystack golden set, and `golden build`, which generates context-filling payloads at a 25/50/75/90% fill ladder sized with tiktoken.
 10. **Golden runner.** `golden run` sends each payload with fixed parameters, scores needle recall, and appends every response with usage, latency, and hashes to a JSONL run file; local-first with `--allow-cloud` and a token cap.
 11. **Drift compare.** `golden runs`, `golden baseline`, and `golden compare`, which diff a run against a pinned baseline per fill level (recall, text similarity, length, latency) and exit non-zero on drift.
 
