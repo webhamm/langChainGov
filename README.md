@@ -7,21 +7,22 @@ The plan lives in `specs/`: `mission.md` (why and what), `tech-stack.md` (how), 
 ## Prerequisites
 
 - [uv](https://docs.astral.sh/uv/) (it installs the pinned Python 3.12 for you)
-- A LiteLLM proxy running locally, by default on `http://localhost:4000`, with an API key
+- For a real model: [Ollama](https://ollama.com/) running as a Homebrew service (`brew install ollama && brew services start ollama`). `make llm-up` does the rest (see [Local model stack](#local-model-stack)). Any other LiteLLM proxy on `http://localhost:4000` works too.
 
 ## Setup
 
 ```sh
 uv sync
-cp .env.example .env   # then fill in LITELLM_API_KEY and LANGCHAINGOV_MODEL
+cp .env.example .env   # then set LITELLM_MASTER_KEY (any value starting with sk-)
+make llm-up            # local Llama + LiteLLM on :4000
 ```
 
 Settings (environment variables or `.env`):
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `LITELLM_API_KEY` | (required) | Key the LiteLLM proxy expects (`LITELLM_MASTER_KEY` is accepted too, so LiteLLM's own `.env` works) |
-| `LANGCHAINGOV_MODEL` | (required) | Model name as LiteLLM exposes it |
+| `LITELLM_MASTER_KEY` | (required) | Key the LiteLLM proxy expects; `make llm-up` starts the proxy with it (`LITELLM_API_KEY` is accepted too) |
+| `LANGCHAINGOV_MODEL` | (required) | Model name as LiteLLM exposes it; `llama3.2-3b-32k` for the local stack |
 | `LANGCHAINGOV_BASE_URL` | `http://localhost:4000/v1` | OpenAI-compatible endpoint |
 | `LANGCHAINGOV_TEMPERATURE` | `0` | Sampling temperature |
 | `LANGCHAINGOV_BLOCKLIST` | `blorptium,zanthar protocol` | Comma-separated words for the `keyword-blocklist` guard (fictional defaults) |
@@ -35,6 +36,22 @@ Settings (environment variables or `.env`):
 | `LANGCHAINGOV_GR_TOXIC_THRESHOLD` | `0.5` | `gr-toxic`: block when any toxicity label scores at or above this |
 | `LANGCHAINGOV_GR_TOPIC_THRESHOLD` | `0.5` | `gr-topic`: the top topic must be valid and score at least this |
 | `LANGCHAINGOV_GR_VALID_TOPICS` / `_INVALID_TOPICS` | plant-care / finance, taxes, ... | `gr-topic`: candidate labels for the zero-shot classifier |
+
+## Local model stack
+
+`make llm-up` stands up a light local Llama with no Docker:
+
+- **Ollama** serves `llama3.2:3b` as the tag `langchaingov-llama3.2-3b:32k`, built from `infra/ollama/llama3.2-3b-32k.Modelfile`. The Modelfile sets `num_ctx 32768`, because Ollama otherwise serves a much smaller window than the model's advertised 128k.
+- **LiteLLM** (`litellm[proxy]`, version pinned in `scripts/llm/lib.sh`) runs with `uvx` from `infra/litellm/config.yaml` on `:4000`. It exposes the model as `llama3.2-3b-32k` and reads its master key from `.env`.
+
+```sh
+make llm-up       # pull the model if missing, build the 32k tag, start LiteLLM (safe to re-run)
+make llm-smoke    # models lists it, a chat round trip works, Ollama serves context 32768
+make llm-status   # each piece, with the served context; exits 1 if anything is down
+make llm-down     # stop LiteLLM (Ollama and the model stay)
+```
+
+The proxy's pid and log are in `.run/` (git-ignored). Defaults can be overridden with environment variables, e.g. `LLM_PORT=4001 make llm-up` together with `LANGCHAINGOV_BASE_URL=http://localhost:4001/v1`. `llm-up` refuses, with a hint, when Ollama is not running, `.env` has no `LITELLM_MASTER_KEY`, or another process holds the port (for example the shared Docker proxy). The model takes about 2 GB on disk and about 4 GB of memory with the 32k window loaded.
 
 ## Commands
 
@@ -154,10 +171,11 @@ Every guard answers the same protocol and runs on the same eval set, so `guard e
 ```sh
 make check   # ruff lint, ruff format check, mypy --strict, pytest
 make format  # apply formatting
+make llm-up  # local model stack (see above)
 ```
 
 Tests never touch the network: they run in an empty temp directory and inject fake chat models. Real-model runs are manual checks recorded in each phase's `validation.md`.
 
 ## Roadmap
 
-See `specs/roadmap.md`. All four guardrail families are done. Remaining ideas are listed under "Later / optional" in `specs/roadmap.md`.
+See `specs/roadmap.md`. All four guardrail families are done. Stage 3 (golden-set drift over long contexts) starts with the local model stack (phase 08); phases 09 to 11 are specced. Remaining ideas are listed under "Later / optional" in `specs/roadmap.md`.

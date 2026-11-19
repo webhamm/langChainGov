@@ -12,6 +12,9 @@ build/
 # Secrets and local config
 .env
 
+# Local model stack: LiteLLM pid and log (scripts/llm/)
+.run/
+
 # Editors / OS
 .DS_Store
 .idea/
