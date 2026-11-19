@@ -19,16 +19,26 @@ from langchaingov.chain import GuardedChain
 from langchaingov.evals.loader import EvalSetError, load_set
 from langchaingov.evals.runner import Counts, EvalReport, run_eval
 from langchaingov.golden import loader as golden_loader
+from langchaingov.golden.compare import DriftReport, Thresholds, compare_runs
 from langchaingov.golden.generator import build_payload, usable_tokens
 from langchaingov.golden.models import GoldenSet, Payload
 from langchaingov.golden.runner import RunRefused, execute_run, plan_run
 from langchaingov.golden.store import (
     CaseResult,
     RequestParams,
+    RunFileError,
     RunHeader,
+    RunSummary,
     RunWriter,
+    baseline_key,
+    list_runs,
+    load_baselines,
     make_run_id,
+    pin_baseline,
+    read_run,
+    run_path,
     set_sha256,
+    summarize,
 )
 from langchaingov.golden.tokens import TiktokenCounter, TokenCounter, TokenizerUnavailable
 from langchaingov.guards import registry
@@ -54,6 +64,7 @@ err_console = Console(stderr=True)
 
 EXIT_ERROR = 1
 EXIT_BLOCKED = 2
+EXIT_DRIFT = 3
 EXIT_CASE_ERRORS = 4
 
 ModelFactory = Callable[[Settings, str | None], BaseChatModel]
@@ -485,6 +496,7 @@ def golden_run(
             err_console.print(
                 f"running {payload.case_id} #{index} ({payload.est_tokens} tokens)...",
                 highlight=False,
+                soft_wrap=True,
             )
 
     def on_case(result: CaseResult) -> None:
@@ -506,19 +518,24 @@ def golden_run(
         console.print_json(json.dumps(summary))
     else:
         _print_run_summary(golden, results)
-        console.print(f"Run {header.run_id} written to {path}", highlight=False)
+        console.print(f"Run {header.run_id} written to {path}", highlight=False, soft_wrap=True)
     if errored:
         raise typer.Exit(EXIT_CASE_ERRORS)
 
 
 def _print_case_line(r: CaseResult) -> None:
     if r.error:
-        console.print(f"  {r.case_id} #{r.repeat}: [red]error[/red] {r.error}", highlight=False)
+        console.print(
+            f"  {r.case_id} #{r.repeat}: [red]error[/red] {r.error}",
+            highlight=False,
+            soft_wrap=True,
+        )
         return
     flag = " [red]suspected truncation[/red]" if r.suspected_truncation else ""
     console.print(
         f"  {r.case_id} #{r.repeat}: recall {r.recall:.0%}, {r.latency_ms / 1000:.1f} s{flag}",
         highlight=False,
+        soft_wrap=True,
     )
 
 
@@ -543,4 +560,253 @@ def _print_run_summary(golden: GoldenSet, results: list[CaseResult]) -> None:
             note,
         )
     console.print(table)
-    console.print(f"Needles: {', '.join(n.id for n in golden.needles)}", highlight=False)
+    console.print(
+        f"Needles: {', '.join(n.id for n in golden.needles)}", highlight=False, soft_wrap=True
+    )
+
+
+@golden_app.command("runs")
+def golden_runs(
+    model: str | None = typer.Option(None, "--model", "-m", help="Only runs of this model."),
+    json_output: bool = JSON_FLAG,
+) -> None:
+    """List the recorded golden-set runs, oldest first, and which are pinned baselines."""
+    settings = Settings()
+    try:
+        summaries, problems = list_runs(settings.runs_dir)
+        pinned = set(load_baselines(settings.runs_dir).values())
+    except RunFileError as exc:
+        fail(str(exc))
+    if model:
+        summaries = [s for s in summaries if s.model == model]
+    for problem in problems:
+        err_console.print(f"[yellow]skipped:[/yellow] {problem}", highlight=False, soft_wrap=True)
+
+    if json_output:
+        runs = [{**s.model_dump(mode="json"), "pinned": s.run_id in pinned} for s in summaries]
+        payload = {"runs_dir": str(settings.runs_dir), "runs": runs, "unreadable": problems}
+        console.print_json(json.dumps(payload))
+        return
+    if not summaries:
+        console.print(
+            f"No runs in {settings.runs_dir}. Start one with: langchaingov golden run",
+            highlight=False,
+            soft_wrap=True,
+        )
+        return
+    _print_runs(summaries, pinned)
+
+
+def _print_runs(summaries: list[RunSummary], pinned: set[str]) -> None:
+    # The run id already says when and which model, and it is what you copy, so it is
+    # never wrapped or truncated.
+    table = Table()
+    table.add_column("Run", no_wrap=True)
+    for name in ("Set", "Levels %", "Cases", "Recall", "Status"):
+        table.add_column(name, overflow="fold")
+    for s in summaries:
+        style = {"complete": "green", "errors": "red", "partial": "yellow"}[s.status]
+        status = f"[{style}]{s.status}[/{style}]"
+        if s.run_id in pinned:
+            status += " [bold]baseline[/bold]"
+        levels = "/".join(f"{lv * 100:g}" for lv in s.levels)
+        table.add_row(
+            s.run_id,
+            s.set_name,
+            levels + (f" x{s.repeat}" if s.repeat > 1 else ""),
+            f"{s.cases}/{s.expected_cases}",
+            "-" if s.mean_recall is None else f"{s.mean_recall:.0%}",
+            status,
+        )
+    console.print(table)
+
+
+@golden_app.command("baseline")
+def golden_baseline(
+    run_id: str | None = typer.Argument(None, help="Run to pin. Omit to list the pins."),
+    json_output: bool = JSON_FLAG,
+) -> None:
+    """Pin a complete run as the baseline for its set and model, or list the pins."""
+    settings = Settings()
+    runs_dir = settings.runs_dir
+    try:
+        if run_id:
+            path = run_path(runs_dir, run_id)
+            summary = summarize(path, *read_run(path))
+            pin_baseline(runs_dir, summary)
+        pins = load_baselines(runs_dir)
+    except RunFileError as exc:
+        fail(str(exc))
+
+    if json_output:
+        console.print_json(json.dumps({"baselines": pins}))
+    elif run_id:
+        console.print(
+            f"Pinned {run_id} as the baseline for set {summary.set_name!r}, model {summary.model}",
+            highlight=False,
+            soft_wrap=True,
+        )
+    elif not pins:
+        console.print(
+            "No baselines pinned. Pin one with: langchaingov golden baseline <run_id>",
+            highlight=False,
+            soft_wrap=True,
+        )
+    else:
+        table = Table("Set :: model", "Baseline run")
+        for key, value in sorted(pins.items()):
+            table.add_row(key, value)
+        console.print(table)
+
+
+@golden_app.command("compare")
+def golden_compare(
+    run_id: str | None = typer.Argument(
+        None, help="Run to check. Default: the latest run of --model / LANGCHAINGOV_MODEL."
+    ),
+    baseline: str | None = typer.Option(
+        None,
+        "--baseline",
+        help="Run to compare against. Default: the pinned baseline, else the earliest "
+        "complete run of the same set and model.",
+    ),
+    model: str | None = MODEL_OPTION,
+    cross_model: bool = typer.Option(
+        False, "--cross-model", help="Allow comparing runs of different models."
+    ),
+    min_similarity: float | None = typer.Option(
+        None, "--min-similarity", min=0, max=1, help="Override LANGCHAINGOV_DRIFT_MIN_SIMILARITY."
+    ),
+    prompt_token_pct: float | None = typer.Option(
+        None, "--prompt-token-pct", min=0, help="Override LANGCHAINGOV_DRIFT_PROMPT_TOKEN_PCT."
+    ),
+    json_output: bool = JSON_FLAG,
+) -> None:
+    """Compare a run with its baseline, per fill level, and say whether answers drifted.
+
+    Exit code 0 when stable, 3 on drift, 1 when the runs are not comparable or missing.
+    """
+    settings = Settings()
+    runs_dir = settings.runs_dir
+    note = ""
+    try:
+        summaries, _ = list_runs(runs_dir)
+        if run_id:
+            current_path = run_path(runs_dir, run_id)
+        else:
+            name = model or settings.model
+            candidates = [s for s in summaries if not name or s.model == name]
+            if not candidates:
+                of_model = f" of {name}" if name else ""
+                fail(f"No runs{of_model} in {runs_dir}. Start one with: langchaingov golden run")
+            current_path = candidates[-1].path
+        current = read_run(current_path)
+        head = current[0]
+
+        if baseline:
+            baseline_path = run_path(runs_dir, baseline)
+        elif pinned := load_baselines(runs_dir).get(baseline_key(head.set_name, head.model)):
+            baseline_path = run_path(runs_dir, pinned)
+            note = f"Baseline: pinned run {pinned}"
+        else:
+            complete = [
+                s
+                for s in summaries
+                if s.status == "complete"
+                and s.set_name == head.set_name
+                and s.model == head.model
+                and s.path != current_path
+            ]
+            if not complete:
+                fail(
+                    f"No baseline for set {head.set_name!r}, model {head.model}. Pin one with "
+                    "langchaingov golden baseline <run_id>, or pass --baseline."
+                )
+            baseline_path = complete[0].path
+            note = (
+                f"Baseline: no run pinned for set {head.set_name!r}, model {head.model}; "
+                f"using the earliest complete run {complete[0].run_id}"
+            )
+        if baseline_path == current_path:
+            fail(f"{head.run_id} is its own baseline. Record another run, then compare.")
+        base = read_run(baseline_path)
+    except RunFileError as exc:
+        fail(str(exc))
+
+    thresholds = Thresholds(
+        min_similarity=settings.drift_min_similarity if min_similarity is None else min_similarity,
+        prompt_token_pct=(
+            settings.drift_prompt_token_pct if prompt_token_pct is None else prompt_token_pct
+        ),
+    )
+    report = compare_runs(base, current, thresholds, cross_model=cross_model)
+
+    if json_output:
+        payload = {**report.model_dump(mode="json"), "note": note}
+        payload["thresholds"] = thresholds.model_dump()
+        console.print_json(json.dumps(payload))
+    else:
+        _print_drift(report, note)
+    if report.verdict == "NOT COMPARABLE":
+        raise typer.Exit(EXIT_ERROR)
+    if report.verdict == "DRIFT":
+        raise typer.Exit(EXIT_DRIFT)
+
+
+def _signed(value: float | None) -> str:
+    return "-" if value is None else f"{value:+.1f}%"
+
+
+def _print_drift(report: DriftReport, note: str) -> None:
+    if note:
+        console.print(note, highlight=False, soft_wrap=True)
+    console.print(
+        f"Comparing {report.current_run_id} against baseline {report.baseline_run_id}",
+        highlight=False,
+        soft_wrap=True,
+    )
+    if report.reasons:
+        for reason in report.reasons:
+            console.print(f"  - {reason}", highlight=False, soft_wrap=True)
+    else:
+        table = Table(
+            "Case",
+            "Recall",
+            "Lost / gained",
+            "Similarity",
+            "Length",
+            "Latency",
+            "Prompt tok",
+            "Finish",
+        )
+        for row in report.rows:
+            changes = " ".join([*(f"-{n}" for n in row.lost), *(f"+{n}" for n in row.gained)])
+            finish = "/".join(row.current_finish)
+            if row.baseline_finish != row.current_finish:
+                finish = f"{'/'.join(row.baseline_finish)} -> {finish}"
+            table.add_row(
+                row.case_id,
+                f"{row.baseline_recall:.0%} -> {row.current_recall:.0%}",
+                changes,
+                "-" if row.similarity is None else f"{row.similarity:.3f}",
+                _signed(row.length_change_pct),
+                _signed(row.latency_change_pct),
+                _signed(row.prompt_tokens_change_pct),
+                finish,
+            )
+        console.print(table)
+        if report.not_compared:
+            console.print(
+                f"Not compared (only in one run): {', '.join(report.not_compared)}",
+                highlight=False,
+                soft_wrap=True,
+            )
+        for flag in report.flags:
+            style = "red" if flag.kind == "drift" else "yellow"
+            console.print(
+                f"  [{style}]{flag.kind}[/{style}] {flag.case_id} {flag.metric}: {flag.detail}",
+                highlight=False,
+                soft_wrap=True,
+            )
+    style = {"STABLE": "green", "DRIFT": "red", "NOT COMPARABLE": "yellow"}[report.verdict]
+    console.print(f"[bold {style}]{report.verdict}[/bold {style}]")

@@ -1,3 +1,3 @@
 """langchaingov: a learning sandbox for LangChain guardrails against a local model."""
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"

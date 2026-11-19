@@ -155,7 +155,7 @@ The config has no `llm continuation`: the sandbox's chain still produces the ans
 
 ## Golden set (long-context drift)
 
-Stage 3 measures whether a model's answers drift over time when it is fed the same context-filling prompt again and again. `golden build` makes the prompts, `golden run` sends them and records the replies, and comparing runs comes in phase 11.
+Stage 3 measures whether a model's answers drift over time when it is fed the same context-filling prompt again and again. `golden build` makes the prompts, `golden run` sends them and records the replies, and `golden compare` says whether a later run drifted from a baseline.
 
 ```sh
 uv run langchaingov golden build --model llama3.2-3b-32k            # the 25/50/75/90% ladder
@@ -182,6 +182,32 @@ uv run langchaingov golden run --model claude-haiku-4-5 --context 200000 --allow
 - **Local first**: a model that isn't marked local in its profile (or has no profile) is refused unless `--allow-cloud` is given. Cloud runs are also refused up front if their estimated prompt tokens exceed `LANGCHAINGOV_GOLDEN_CLOUD_TOKEN_CAP` (50,000) or `--max-prompt-tokens`.
 - **Exit codes**: 0 when every case completed, 4 when the run finished but some cases errored (a rejected request or a timeout), 1 for config, refusal, or connection errors.
 
+### Drift over time: the runbook
+
+```sh
+make llm-up                                            # local model stack
+uv run langchaingov golden run --model llama3.2-3b-32k # 1. record a run (about 5 min)
+uv run langchaingov golden runs                        # 2. list runs: id, levels, recall, status
+uv run langchaingov golden baseline <run_id>           # 3. pin a complete run as the baseline
+# ... later: after a model, Ollama, LiteLLM, or config change, or just days later ...
+uv run langchaingov golden run --model llama3.2-3b-32k # 4. record another run
+uv run langchaingov golden compare --model llama3.2-3b-32k   # 5. STABLE (exit 0) or DRIFT (exit 3)
+```
+
+`golden compare [RUN_ID] [--baseline RUN_ID]` checks the latest run of the model (or `RUN_ID`) against the pinned baseline. With no pin, it uses the earliest complete run of the same set and model, and says so. Pins live in `runs/golden/baselines.json`.
+
+It first checks that the two runs are the same test: same set content, same generator version, and identical prompt bytes per level. If not, the verdict is **NOT COMPARABLE** (exit 1) with the reason, for example a different `--context`. Otherwise it prints one row per fill level both runs have:
+
+| Column | Meaning |
+| --- | --- |
+| Recall | baseline -> current needle recall (averaged over repeats) |
+| Lost / gained | needles whose recall rate fell (`-id`) or rose (`+id`) |
+| Similarity | difflib ratio of each current reply to its best-matching baseline reply (the lowest one shown) |
+| Length, Latency, Prompt tok | % change in mean reply length, latency, and the model's reported prompt tokens |
+| Finish | finish reason, with `before -> after` if it changed |
+
+**DRIFT** (exit 3) means the answers changed: a needle was lost, similarity fell below `LANGCHAINGOV_DRIFT_MIN_SIMILARITY` (0.90; `--min-similarity`), the finish reason changed, or a case errored. **Environment** warnings mean the setup changed but don't fail the compare on their own: reported prompt tokens moved more than `LANGCHAINGOV_DRIFT_PROMPT_TOKEN_PCT` (2%; `--prompt-token-pct`), or truncation is newly suspected. Latency is shown but never flagged. `--cross-model` compares two different models on the same test, and `--json` gives the full report.
+
 ## Comparing the four families
 
 Every guard answers the same protocol and runs on the same eval set, so `guard eval -g <name>` (offline, input guards only) or `guard eval -g <name> --with-model` gives comparable numbers. Rough character of each family, from building them:
@@ -207,4 +233,4 @@ Tests never touch the network: they run in an empty temp directory and inject fa
 
 ## Roadmap
 
-See `specs/roadmap.md`. All four guardrail families are done. Stage 3 (golden-set drift over long contexts): the local model stack (phase 08), payload generator (phase 09), and golden runner (phase 10) are done; drift compare (phase 11) is specced. Remaining ideas are listed under "Later / optional" in `specs/roadmap.md`.
+See `specs/roadmap.md`. All four guardrail families are done. Stage 3 (golden-set drift over long contexts): all four phases are done (local model stack, payload generator, golden runner, drift compare), which completes the golden-set MVP. Remaining ideas are listed under "Later / optional" in `specs/roadmap.md`.

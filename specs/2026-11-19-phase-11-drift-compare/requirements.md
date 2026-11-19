@@ -20,7 +20,7 @@ Roadmap: Stage 3 — Golden set drift, phase 11. Branch (created when work start
   - Drift rules with default thresholds (settings, overridable by flags): any needle lost, similarity below the threshold, or a finish-reason change is **drift**. A reported prompt-token change beyond the threshold is an **environment change** warning (the tokenizer or serving setup moved). Latency is informational only.
 - **CLI**: `langchaingov golden compare [RUN_ID] [--baseline RUN_ID] [--cross-model] [--json]`. `RUN_ID` defaults to the latest run for the configured model, and the baseline to the pinned one. It prints a per-level table and a one-line verdict (`STABLE` / `DRIFT` / `NOT COMPARABLE`). Exit 0 stable, 3 drift, 1 not comparable or a missing run/baseline.
 - **README runbook**: the end-to-end MVP loop (build, run, pin baseline, run again later, compare), plus how to read the table.
-- **Tests**: hand-built run files in `tests/golden/data/`; compatibility refusals; each drift rule at and just past its threshold; the environment-change warning; listing and baseline pinning; CLI text, JSON, and exit codes.
+- **Tests**: hand-built run files from a builder in `tests/golden/runs.py` (fictional data); compatibility refusals; each drift rule at and just past its threshold; the environment-change warning; listing and baseline pinning; CLI text, JSON, and exit codes.
 
 ### Out of scope
 
@@ -31,12 +31,12 @@ Roadmap: Stage 3 — Golden set drift, phase 11. Branch (created when work start
 
 Check in with the user on each of these before implementing; if the answers change the phase plan, update `specs/roadmap.md` too.
 
-- Default thresholds? (Proposal: drift on any needle lost; text similarity < 0.90; finish-reason change. Environment warning when reported prompt tokens move > 2%.)
-- With no pinned baseline, refuse or fall back to the earliest complete run for the same set and model? (Proposal: fall back, and say so in the output.)
-- Exit code for drift? (Proposal: 3. Exit 2 already means "blocked" for `guard run`.)
-- Should a prompt-token change count as drift rather than a warning? (Proposal: warning, since it signals the environment changed, not the model's answers.)
-- Is `--against previous` (compare with the run just before, not the baseline) worth adding in the MVP? (Proposal: no, leave it for later.)
-- With `--repeat N` runs, compare per repeat or on the aggregate (mean recall, min similarity)? (Proposal: aggregate per level, with per-repeat details in `--json`.)
+- Default thresholds? (Proposal: drift on any needle lost; text similarity < 0.90; finish-reason change. Environment warning when reported prompt tokens move > 2%.) **Resolved:** as proposed. Drift on any needle whose recall rate dropped, text similarity < 0.90, a finish-reason change, or a case that errored. Latency is informational only. Settings `LANGCHAINGOV_DRIFT_MIN_SIMILARITY` and `LANGCHAINGOV_DRIFT_PROMPT_TOKEN_PCT`, overridable with flags.
+- With no pinned baseline, refuse or fall back to the earliest complete run for the same set and model? (Proposal: fall back, and say so in the output.) **Resolved:** fall back to the earliest complete run of the same set and model, and say so.
+- Exit code for drift? (Proposal: 3. Exit 2 already means "blocked" for `guard run`.) **Resolved:** 3.
+- Should a prompt-token change count as drift rather than a warning? (Proposal: warning, since it signals the environment changed, not the model's answers.) **Resolved:** a warning above 2%, as is a newly suspected truncation; neither alone makes the verdict DRIFT.
+- Is `--against previous` (compare with the run just before, not the baseline) worth adding in the MVP? (Proposal: no, leave it for later.) **Resolved:** no; added to "Later / optional".
+- With `--repeat N` runs, compare per repeat or on the aggregate (mean recall, min similarity)? (Proposal: aggregate per level, with per-repeat details in `--json`.) **Resolved:** aggregate per level. Each needle's recall rate is compared, similarity is the minimum over current replies of their best match among the baseline's replies, and other metrics use means. Per-repeat details are in `--json`.
 
 (When the phase starts, append ` **Resolved:** <answer>.` to each question.)
 

@@ -1,8 +1,9 @@
-"""Golden-set run files: one JSONL file per run.
+"""Golden-set run files: one JSONL file per run, plus ``baselines.json``.
 
 Line 1 is the ``RunHeader``; every later line is one ``CaseResult``, appended and flushed
 as soon as the case finishes, so a run that crashes or is interrupted keeps every case
 it completed. Prompts are not stored, only their SHA-256: they regenerate from the set.
+``baselines.json`` in the same directory maps "set::model" to the pinned run id.
 """
 
 import hashlib
@@ -134,3 +135,96 @@ def read_run(path: Path) -> tuple[RunHeader, list[CaseResult]]:
                 break
             raise RunFileError(f"run file {path} line {number} is invalid: {exc}") from exc
     return header, cases
+
+
+RunStatus = Literal["complete", "errors", "partial"]
+BASELINES_FILE = "baselines.json"
+
+
+class RunSummary(BaseModel):
+    run_id: str
+    path: Path
+    started_at: datetime
+    model: str
+    set_name: str
+    levels: list[float]
+    repeat: int
+    cases: int
+    expected_cases: int
+    errored: int
+    mean_recall: float | None
+    status: RunStatus
+    """``partial``: cases are missing (interrupted); ``errors``: all there, some errored."""
+
+
+def summarize(path: Path, header: RunHeader, cases: list[CaseResult]) -> RunSummary:
+    expected = len(header.levels) * header.repeat
+    errored = sum(1 for c in cases if c.error)
+    status: RunStatus = "partial" if len(cases) < expected else "errors" if errored else "complete"
+    scored = [c.recall for c in cases if not c.error]
+    return RunSummary(
+        run_id=header.run_id,
+        path=path,
+        started_at=header.started_at,
+        model=header.model,
+        set_name=header.set_name,
+        levels=header.levels,
+        repeat=header.repeat,
+        cases=len(cases),
+        expected_cases=expected,
+        errored=errored,
+        mean_recall=sum(scored) / len(scored) if scored else None,
+        status=status,
+    )
+
+
+def list_runs(runs_dir: Path) -> tuple[list[RunSummary], list[str]]:
+    """Every readable run, oldest first (run ids sort by time), and one message per file
+    that could not be read."""
+    summaries: list[RunSummary] = []
+    problems: list[str] = []
+    for path in sorted(runs_dir.glob("*.jsonl")) if runs_dir.is_dir() else []:
+        try:
+            summaries.append(summarize(path, *read_run(path)))
+        except RunFileError as exc:
+            problems.append(str(exc))
+    summaries.sort(key=lambda s: s.run_id)
+    return summaries, problems
+
+
+def run_path(runs_dir: Path, run_id: str) -> Path:
+    path = runs_dir / f"{run_id}.jsonl"
+    if not path.is_file():
+        raise RunFileError(f"no run {run_id!r} in {runs_dir} (see: langchaingov golden runs)")
+    return path
+
+
+def baseline_key(set_name: str, model: str) -> str:
+    return f"{set_name}::{model}"
+
+
+def load_baselines(runs_dir: Path) -> dict[str, str]:
+    path = runs_dir / BASELINES_FILE
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RunFileError(f"cannot read {path}: {exc}") from exc
+    if not isinstance(data, dict) or not all(isinstance(v, str) for v in data.values()):
+        raise RunFileError(f"{path} must map 'set::model' to a run id")
+    return data
+
+
+def pin_baseline(runs_dir: Path, summary: RunSummary) -> None:
+    """Pin a complete run as the baseline for its set and model."""
+    if summary.status != "complete":
+        raise RunFileError(
+            f"run {summary.run_id} is {summary.status}; only a complete run can be a baseline"
+        )
+    pins = load_baselines(runs_dir)
+    pins[baseline_key(summary.set_name, summary.model)] = summary.run_id
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    (runs_dir / BASELINES_FILE).write_text(
+        json.dumps(pins, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )

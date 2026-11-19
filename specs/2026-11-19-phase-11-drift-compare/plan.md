@@ -13,7 +13,7 @@ See `requirements.md` for scope and decisions, and `validation.md` for the merge
 ## 2. History and baselines
 
 2.1. `golden/store.py`: `list_runs`, `RunSummary` (status, mean recall), `load_baselines` / `pin_baseline` over `baselines.json`. Tests in `tests/golden/test_store.py`.
-2.2. Fixture run files in `tests/golden/data/` (baseline, stable rerun, drifted rerun, different-generator rerun, partial run).
+2.2. A run-file builder in `tests/golden/runs.py` that makes baseline, stable, drifted, incompatible, errored, and partial runs on demand.
 
 ## 3. Comparison
 
