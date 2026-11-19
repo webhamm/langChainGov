@@ -153,6 +153,21 @@ uv sync --extra nemo
 
 The config has no `llm continuation`: the sandbox's chain still produces the answer, NeMo only decides. See `docs/nemo-notes.md` for how that was made to fit, and what did not work.
 
+## Golden set (long-context drift)
+
+Stage 3 measures whether a model's answers drift over time when it is fed the same context-filling prompt again and again. Phase 09 builds the prompts. Sending them and comparing runs come in phases 10 and 11.
+
+```sh
+uv run langchaingov golden build --model llama3.2-3b-32k            # the 25/50/75/90% ladder
+uv run langchaingov golden build --model llama3.2-3b-32k -l 0.5 --dump prompts/   # also write the prompt text
+uv run langchaingov golden build --model some-other-model --context 8192 --json
+```
+
+Each payload is a needle-in-a-haystack prompt: seeded, fictional harbour-survey filler with five fictional facts planted at depths 5/25/50/75/95%, followed by five questions with known answers. Generation is deterministic: the same set, model profile, and level always give the same SHA-256. Sizes are counted with tiktoken (`o200k_base`), which downloads its encoding on first use and then caches it. Against `llama3.2-3b-32k`, Llama's own count came within about 1% of tiktoken's.
+
+- **Golden set file**: `src/langchaingov/golden/data/default.yaml` holds the seed, ladder, output reserve, system prompt, instruction, and needles. `--set` loads another file. Any change that alters payload bytes must bump `generator_version`. The filler templates are in `golden/filler.py`.
+- **Model profiles**: `src/langchaingov/golden/models.yaml` gives each model's *served* context window and whether it is local. A model without a profile needs `--context N`.
+
 ## Comparing the four families
 
 Every guard answers the same protocol and runs on the same eval set, so `guard eval -g <name>` (offline, input guards only) or `guard eval -g <name> --with-model` gives comparable numbers. Rough character of each family, from building them:
@@ -178,4 +193,4 @@ Tests never touch the network: they run in an empty temp directory and inject fa
 
 ## Roadmap
 
-See `specs/roadmap.md`. All four guardrail families are done. Stage 3 (golden-set drift over long contexts) starts with the local model stack (phase 08); phases 09 to 11 are specced. Remaining ideas are listed under "Later / optional" in `specs/roadmap.md`.
+See `specs/roadmap.md`. All four guardrail families are done. Stage 3 (golden-set drift over long contexts): the local model stack (phase 08) and the payload generator (phase 09) are done; the runner and drift compare (phases 10 and 11) are specced. Remaining ideas are listed under "Later / optional" in `specs/roadmap.md`.

@@ -1,6 +1,6 @@
 [project]
 name = "langchaingov"
-version = "0.8.0"
+version = "0.9.0"
 description = "A learning sandbox for LangChain guardrails against a local model served through LiteLLM"
 readme = "README.md"
 authors = [
@@ -13,6 +13,7 @@ dependencies = [
     "pydantic-settings>=2.6",
     "pyyaml>=6.0.3",
     "rich>=13.0",
+    "tiktoken>=0.14.0",
     "typer>=0.15",
 ]
 

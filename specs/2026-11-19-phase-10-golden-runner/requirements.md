@@ -46,4 +46,5 @@ Check in with the user on each of these before implementing; if the answers chan
 - `tech-stack.md` → "Golden-set drift": the runner measures the raw model through `make_chat_model`, not `GuardedChain`; scoring is deterministic; prompts are stored only as hashes.
 - `mission.md` principle 1: local first; cloud only behind `--allow-cloud` with a token cap.
 - `mission.md` principle 4: tests use fakes; real runs are manual checks logged here.
+- Calibration from phase 09 (2026-11-19, `llama3.2-3b-32k`): Llama's reported prompt tokens were 0.7–0.9% above tiktoken's estimate (system prompt and chat template included), so the 90% rung used 87% of the window. The 90% rung took about 2 minutes on an M3 Pro. Size the truncation threshold and the timeout from this.
 - Feature request part 2: "A method of sending out the request that is consistent and captures the return result."
