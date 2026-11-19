@@ -45,4 +45,5 @@ Check in with the user on each of these before implementing; if the answers chan
 - `tech-stack.md` → "Golden-set drift": compare refuses to compare across `generator_version`s; prompts are matched by SHA-256.
 - `mission.md` "What success looks like": `golden run` followed later by `golden compare` shows drift per fill level and exits non-zero when it has.
 - `mission.md` principle 3, applied here: every drift flag says which metric moved, by how much, and against which threshold.
+- First real runs (phase 10, 2026-11-19, `llama3.2-3b-32k`, temperature 0, seed sent): 100% recall at every level, with identically formatted replies. Reported prompt tokens were 0.7–0.9% above the estimate. Latency was 26–100 s across the ladder, so latency changes are noisy and should stay informational. When a profile overstated the window, Ollama silently kept only half of `num_ctx`.
 - Feature request part 3: "Evaluation for historical comparisons over time to determine differences and any drift in return potentially."

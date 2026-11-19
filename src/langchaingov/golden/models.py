@@ -65,6 +65,8 @@ class ModelProfile(BaseModel):
     name: str
     context_tokens: int = Field(gt=0)
     local: bool = False
+    supports_seed: bool = False
+    """Whether the provider honours a request ``seed``; only then does ``golden run`` send one."""
 
 
 class Payload(BaseModel):

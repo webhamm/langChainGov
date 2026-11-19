@@ -3,7 +3,9 @@
 import json
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 import openai
 import typer
@@ -18,7 +20,16 @@ from langchaingov.evals.loader import EvalSetError, load_set
 from langchaingov.evals.runner import Counts, EvalReport, run_eval
 from langchaingov.golden import loader as golden_loader
 from langchaingov.golden.generator import build_payload, usable_tokens
-from langchaingov.golden.models import Payload
+from langchaingov.golden.models import GoldenSet, Payload
+from langchaingov.golden.runner import RunRefused, execute_run, plan_run
+from langchaingov.golden.store import (
+    CaseResult,
+    RequestParams,
+    RunHeader,
+    RunWriter,
+    make_run_id,
+    set_sha256,
+)
 from langchaingov.golden.tokens import TiktokenCounter, TokenCounter, TokenizerUnavailable
 from langchaingov.guards import registry
 from langchaingov.guards.base import GuardedResult, Guardrail, Stage
@@ -43,6 +54,7 @@ err_console = Console(stderr=True)
 
 EXIT_ERROR = 1
 EXIT_BLOCKED = 2
+EXIT_CASE_ERRORS = 4
 
 ModelFactory = Callable[[Settings, str | None], BaseChatModel]
 
@@ -50,6 +62,20 @@ ModelFactory = Callable[[Settings, str | None], BaseChatModel]
 model_factory: ModelFactory = make_chat_model
 models_lister: Callable[[Settings], list[str]] = list_models
 token_counter_factory: Callable[[], TokenCounter] = TiktokenCounter
+
+
+def _golden_chat_model(settings: Settings, model: str, params: RequestParams) -> BaseChatModel:
+    return make_chat_model(
+        settings,
+        model,
+        max_tokens=params.max_tokens,
+        timeout=params.timeout_s,
+        seed=params.seed_sent,
+        max_retries=params.max_retries,
+    )
+
+
+golden_model_factory: Callable[[Settings, str, RequestParams], BaseChatModel] = _golden_chat_model
 
 JSON_FLAG = typer.Option(False, "--json", help="Print JSON instead of text.")
 SYSTEM_OPTION = typer.Option(None, "--system", "-s", help="Optional system prompt.")
@@ -382,3 +408,139 @@ def _print_payloads(payloads: list[Payload]) -> None:
             depths,
         )
     console.print(table)
+
+
+REPEAT_OPTION = typer.Option(1, "--repeat", min=1, help="Send each payload this many times.")
+ALLOW_CLOUD_FLAG = typer.Option(
+    False, "--allow-cloud", help="Allow a model whose profile is not local (costs money)."
+)
+MAX_PROMPT_TOKENS_OPTION = typer.Option(
+    None,
+    "--max-prompt-tokens",
+    min=1,
+    help="Cloud runs only: most estimated prompt tokens to send. Default: the setting.",
+)
+
+
+@golden_app.command("run")
+def golden_run(
+    set_path: Path | None = GOLDEN_SET_OPTION,
+    model: str | None = MODEL_OPTION,
+    context: int | None = CONTEXT_OPTION,
+    level: list[float] | None = LEVEL_OPTION,
+    repeat: int = REPEAT_OPTION,
+    allow_cloud: bool = ALLOW_CLOUD_FLAG,
+    max_prompt_tokens: int | None = MAX_PROMPT_TOKENS_OPTION,
+    json_output: bool = JSON_FLAG,
+) -> None:
+    """Send each golden-set payload to the model with fixed parameters and record the replies.
+
+    Writes one JSONL file per run under LANGCHAINGOV_RUNS_DIR. Exit code 0 when every
+    case completed, 4 when the run finished but some cases errored, 1 on other errors.
+    """
+    settings = Settings()
+    _require_key(settings)
+    model_name = model or settings.model
+    if not model_name:
+        fail("No model configured. Set LANGCHAINGOV_MODEL in .env or pass --model.")
+    counter = token_counter_factory()
+    try:
+        golden = golden_loader.load_set(set_path)
+        profile = golden_loader.resolve_profile(model_name, context)
+        levels = level or golden.fill_levels
+        cap = max_prompt_tokens or settings.golden_cloud_token_cap
+        payloads = plan_run(golden, profile, levels, repeat, counter, allow_cloud, cap)
+    except (golden_loader.GoldenSetError, TokenizerUnavailable, RunRefused) as exc:
+        fail(str(exc))
+
+    started = datetime.now(UTC)
+    params = RequestParams(
+        temperature=settings.temperature,
+        max_tokens=golden.output_reserve_tokens,
+        timeout_s=settings.golden_timeout,
+        max_retries=0,
+        seed_requested=golden.seed,
+        seed_sent=golden.seed if profile.supports_seed else None,
+    )
+    header = RunHeader(
+        run_id=make_run_id(started, model_name),
+        started_at=started,
+        langchaingov_version=__version__,
+        set_name=golden.name,
+        set_sha256=set_sha256(golden),
+        generator_version=golden.generator_version,
+        model=model_name,
+        profile=profile,
+        params=params,
+        counter=counter.name,
+        base_url_host=urlparse(settings.base_url).netloc,
+        levels=levels,
+        repeat=repeat,
+    )
+    llm = golden_model_factory(settings, model_name, params)
+    path = settings.runs_dir / f"{header.run_id}.jsonl"
+
+    def on_start(payload: Payload, index: int) -> None:
+        if not json_output:
+            err_console.print(
+                f"running {payload.case_id} #{index} ({payload.est_tokens} tokens)...",
+                highlight=False,
+            )
+
+    def on_case(result: CaseResult) -> None:
+        if not json_output:
+            _print_case_line(result)
+
+    with RunWriter(path, header) as writer, _client_errors(settings, model_name):
+        results = execute_run(golden, payloads, repeat, llm, writer, on_start, on_case)
+
+    errored = sum(1 for r in results if r.error)
+    if json_output:
+        summary = {
+            "run_id": header.run_id,
+            "path": str(path),
+            "header": header.model_dump(mode="json"),
+            "cases": [r.model_dump(mode="json", exclude={"response"}) for r in results],
+            "errored": errored,
+        }
+        console.print_json(json.dumps(summary))
+    else:
+        _print_run_summary(golden, results)
+        console.print(f"Run {header.run_id} written to {path}", highlight=False)
+    if errored:
+        raise typer.Exit(EXIT_CASE_ERRORS)
+
+
+def _print_case_line(r: CaseResult) -> None:
+    if r.error:
+        console.print(f"  {r.case_id} #{r.repeat}: [red]error[/red] {r.error}", highlight=False)
+        return
+    flag = " [red]suspected truncation[/red]" if r.suspected_truncation else ""
+    console.print(
+        f"  {r.case_id} #{r.repeat}: recall {r.recall:.0%}, {r.latency_ms / 1000:.1f} s{flag}",
+        highlight=False,
+    )
+
+
+def _print_run_summary(golden: GoldenSet, results: list[CaseResult]) -> None:
+    table = Table("Case", "Rep", "Est.", "Reported", "Recall", "Finish", "Latency", "Note")
+    for r in results:
+        if r.error:
+            note = f"[red]{r.error}[/red]"
+        elif r.suspected_truncation:
+            note = "[red]suspected truncation[/red]"
+        else:
+            missed = [nid for nid, ok in r.needles.items() if not ok]
+            note = f"missed: {', '.join(missed)}" if missed else ""
+        table.add_row(
+            r.case_id,
+            str(r.repeat),
+            str(r.est_tokens),
+            "-" if r.reported_prompt_tokens is None else str(r.reported_prompt_tokens),
+            f"{r.recall:.0%}",
+            r.finish_reason or "-",
+            f"{r.latency_ms / 1000:.1f} s",
+            note,
+        )
+    console.print(table)
+    console.print(f"Needles: {', '.join(n.id for n in golden.needles)}", highlight=False)

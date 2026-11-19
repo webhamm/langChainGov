@@ -3,8 +3,10 @@
 # context_tokens is the window the model is actually served with, not its advertised
 # maximum: Ollama serves far less than a model's maximum unless num_ctx is raised.
 # local: false (or no profile at all) means `golden run` needs --allow-cloud.
+# supports_seed: true means the provider honours a request seed, so `golden run` sends one.
 # Models without a profile can still be used with --context N.
 models:
   llama3.2-3b-32k:
     context_tokens: 32768 # num_ctx in infra/ollama/llama3.2-3b-32k.Modelfile (a test checks)
     local: true
+    supports_seed: true # LiteLLM's ollama_chat route forwards seed to Ollama

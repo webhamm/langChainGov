@@ -32,12 +32,12 @@ Roadmap: Stage 3 — Golden set drift, phase 10. Branch (created when work start
 
 Check in with the user on each of these before implementing; if the answers change the phase plan, update `specs/roadmap.md` too.
 
-- Does `--repeat` belong in the MVP, and with what default? (Proposal: yes, default 1. Repeats separate in-run nondeterminism from drift over time.)
-- Cloud cap: per payload or per run total, and what default? (Proposal: per run total of estimated prompt tokens, default 50,000, so a cloud run is a deliberate choice.)
-- Scoring strictness: answer anywhere in the response, or only on the line labeled with the needle id? (Proposal: anywhere for the MVP; the labeled-line check is a later refinement.)
-- Seed: send it only when the profile has `supports_seed: true`, or always and let LiteLLM drop it? (Proposal: profile flag; record "requested" vs "sent".)
-- Per-request timeout for long local prompts? (Proposal: 600 s, as a setting.)
-- Run id format? (Proposal: `YYYYMMDDTHHMMSSZ-<model-slug>`, sortable and readable.)
+- Does `--repeat` belong in the MVP, and with what default? (Proposal: yes, default 1. Repeats separate in-run nondeterminism from drift over time.) **Resolved:** yes, `--repeat N`, default 1.
+- Cloud cap: per payload or per run total, and what default? (Proposal: per run total of estimated prompt tokens, default 50,000, so a cloud run is a deliberate choice.) **Resolved:** per-run total of estimated prompt tokens across payloads × repeats; default 50,000 (`LANGCHAINGOV_GOLDEN_CLOUD_TOKEN_CAP`, overridable with `--max-prompt-tokens`); only applies to non-local models.
+- Scoring strictness: answer anywhere in the response, or only on the line labeled with the needle id? (Proposal: anywhere for the MVP; the labeled-line check is a later refinement.) **Resolved:** anywhere in the response, on whole-word boundaries after normalizing.
+- Seed: send it only when the profile has `supports_seed: true`, or always and let LiteLLM drop it? (Proposal: profile flag; record "requested" vs "sent".) **Resolved:** profile flag `supports_seed` (true for `llama3.2-3b-32k`; LiteLLM's `ollama_chat` route forwards `seed`). The header records requested and sent.
+- Per-request timeout for long local prompts? (Proposal: 600 s, as a setting.) **Resolved:** 600 s (`LANGCHAINGOV_GOLDEN_TIMEOUT`), with no client retries, so a slow case can't silently triple. A timeout is recorded as that case's error.
+- Run id format? (Proposal: `YYYYMMDDTHHMMSSZ-<model-slug>`, sortable and readable.) **Resolved:** `YYYYMMDDTHHMMSSZ-<model-slug>`.
 
 (When the phase starts, append ` **Resolved:** <answer>.` to each question.)
 

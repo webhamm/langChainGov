@@ -155,7 +155,7 @@ The config has no `llm continuation`: the sandbox's chain still produces the ans
 
 ## Golden set (long-context drift)
 
-Stage 3 measures whether a model's answers drift over time when it is fed the same context-filling prompt again and again. Phase 09 builds the prompts. Sending them and comparing runs come in phases 10 and 11.
+Stage 3 measures whether a model's answers drift over time when it is fed the same context-filling prompt again and again. `golden build` makes the prompts, `golden run` sends them and records the replies, and comparing runs comes in phase 11.
 
 ```sh
 uv run langchaingov golden build --model llama3.2-3b-32k            # the 25/50/75/90% ladder
@@ -166,7 +166,21 @@ uv run langchaingov golden build --model some-other-model --context 8192 --json
 Each payload is a needle-in-a-haystack prompt: seeded, fictional harbour-survey filler with five fictional facts planted at depths 5/25/50/75/95%, followed by five questions with known answers. Generation is deterministic: the same set, model profile, and level always give the same SHA-256. Sizes are counted with tiktoken (`o200k_base`), which downloads its encoding on first use and then caches it. Against `llama3.2-3b-32k`, Llama's own count came within about 1% of tiktoken's.
 
 - **Golden set file**: `src/langchaingov/golden/data/default.yaml` holds the seed, ladder, output reserve, system prompt, instruction, and needles. `--set` loads another file. Any change that alters payload bytes must bump `generator_version`. The filler templates are in `golden/filler.py`.
-- **Model profiles**: `src/langchaingov/golden/models.yaml` gives each model's *served* context window and whether it is local. A model without a profile needs `--context N`.
+- **Model profiles**: `src/langchaingov/golden/models.yaml` gives each model's *served* context window, whether it is local, and whether it honours a request seed. A model without a profile needs `--context N`.
+
+```sh
+uv run langchaingov golden run --model llama3.2-3b-32k               # the full ladder, about 5 minutes locally
+uv run langchaingov golden run --model llama3.2-3b-32k -l 0.25 --repeat 3
+uv run langchaingov golden run --model claude-haiku-4-5 --context 200000 --allow-cloud -l 0.25
+```
+
+`golden run` sends each payload as one system message plus one user message, with pinned request parameters: `LANGCHAINGOV_TEMPERATURE` (0), `max_tokens` equal to the set's answer reserve, a `LANGCHAINGOV_GOLDEN_TIMEOUT` (600 s) with no client retries, and the set's seed when the profile says the provider honours one. Cases run one after another and print as they finish.
+
+- **Scoring**: a needle counts as recalled when its normalized answer appears anywhere in the reply as whole words. No model judges the answers, so the score itself never drifts.
+- **Run files**: `runs/golden/<run_id>.jsonl` (git-ignored; `LANGCHAINGOV_RUNS_DIR`). The first line holds the run header (model, profile, parameters, set hash, generator version, counter); each later line is one case (reply, per-needle recall, estimated vs reported prompt tokens, completion tokens, finish reason, latency). Each case is written as it finishes, so an interrupted run keeps its finished cases. Run ids look like `20261119T153005Z-llama3.2-3b-32k`.
+- **Truncation warning**: if the model reports far fewer prompt tokens than were sent, the case is marked `suspected truncation`. That usually means the server cut the prompt to a smaller window than its profile claims.
+- **Local first**: a model that isn't marked local in its profile (or has no profile) is refused unless `--allow-cloud` is given. Cloud runs are also refused up front if their estimated prompt tokens exceed `LANGCHAINGOV_GOLDEN_CLOUD_TOKEN_CAP` (50,000) or `--max-prompt-tokens`.
+- **Exit codes**: 0 when every case completed, 4 when the run finished but some cases errored (a rejected request or a timeout), 1 for config, refusal, or connection errors.
 
 ## Comparing the four families
 
@@ -193,4 +207,4 @@ Tests never touch the network: they run in an empty temp directory and inject fa
 
 ## Roadmap
 
-See `specs/roadmap.md`. All four guardrail families are done. Stage 3 (golden-set drift over long contexts): the local model stack (phase 08) and the payload generator (phase 09) are done; the runner and drift compare (phases 10 and 11) are specced. Remaining ideas are listed under "Later / optional" in `specs/roadmap.md`.
+See `specs/roadmap.md`. All four guardrail families are done. Stage 3 (golden-set drift over long contexts): the local model stack (phase 08), payload generator (phase 09), and golden runner (phase 10) are done; drift compare (phase 11) is specced. Remaining ideas are listed under "Later / optional" in `specs/roadmap.md`.
