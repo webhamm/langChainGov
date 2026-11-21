@@ -41,7 +41,7 @@ def load_presidio() -> tuple[Any, Any]:
         }
     )
     analyzer = AnalyzerEngine(nlp_engine=provider.create_engine(), supported_languages=["en"])
-    return analyzer, AnonymizerEngine()  # type: ignore[no-untyped-call]
+    return analyzer, AnonymizerEngine()  # type: ignore[no-untyped-call, unused-ignore]
 
 
 def load_text_classifier(model: str) -> TextScores:
